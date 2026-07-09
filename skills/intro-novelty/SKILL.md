@@ -20,7 +20,8 @@ therefore does NOT invent novelty statements: it renders the **dossier**.
    and targeted web searches, and records the search trail — including
    demotions (a "novel method" that turns out classical becomes an
    ingredient claim, with the discovery recorded).
-3. **The author reviews `novelty/claims.json`** — flips statuses to
+3. **The author reviews the dossier** — via the review dashboard
+   (docs/REVIEW.md; `review/review_server.py`) or in chat — flipping statuses to
    `author-approved` / `author-rejected`, edits statements, adds context.
 4. THIS skill writes prose from `author-approved` claims only.
 

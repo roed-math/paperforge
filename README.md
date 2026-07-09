@@ -61,7 +61,8 @@ coverage with citation-preserving discharge). The ingest toolchain
 `lean_declmap`, `lean_axioms`, `lean_citable`), notation (`notation_far`,
 `notation_registry`), corpus fetching (`fetch_arxiv_corpus`), and novelty
 evidence (`novelty_evidence`). Docs: ARCHITECTURE, DIRECTIVES, PLAGIARISM,
-HTML-FEATURES, NOTATION, REFERENCES, NOVELTY.
+HTML-FEATURES, NOTATION, REFERENCES, NOVELTY, REVIEW. Author review UI:
+`review/review_server.py` (see docs/REVIEW.md).
 
 Known not-yet-a-tool: the one-off matcher that recovered statement numbering
 from a PDF-only old snapshot (gq2's `crosswalk/matched-v428pdf.json`) was

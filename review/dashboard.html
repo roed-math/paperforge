@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>paperforge review</title>
+<style>
+:root { --bg:#fff; --fg:#16181d; --muted:#5c6470; --card:#f6f7f9;
+        --line:#d8dce3; --acc:#2563eb; --ok:#15803d; --bad:#b91c1c;
+        --warn:#b45309; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#14161a; --fg:#e7e9ee; --muted:#9aa3b2; --card:#1d2026;
+          --line:#33383f; --acc:#7aa2ff; --ok:#4ade80; --bad:#f87171;
+          --warn:#fbbf24; }
+}
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.5 -apple-system, "Segoe UI", sans-serif; }
+header { padding:.8rem 1.2rem; border-bottom:1px solid var(--line);
+  display:flex; gap:1rem; align-items:baseline; flex-wrap:wrap;
+  position:sticky; top:0; background:var(--bg); z-index:5;}
+header h1 { font-size:1.05rem; margin:0 }
+nav { display:flex; gap:.4rem; flex-wrap:wrap }
+nav button { border:1px solid var(--line); background:var(--card);
+  color:var(--fg); border-radius:999px; padding:.25rem .8rem; cursor:pointer;
+  font-size:.85rem; }
+nav button.active { border-color:var(--acc); color:var(--acc); font-weight:600 }
+main { max-width:60rem; margin:0 auto; padding:1rem 1.2rem 4rem; }
+.card { background:var(--card); border:1px solid var(--line);
+  border-radius:10px; padding: .9rem 1rem; margin: .8rem 0; }
+.card h3 { margin:0 0 .3rem; font-size:.95rem; font-family:ui-monospace,monospace }
+.body { color:var(--muted); font-size:.86rem; overflow-wrap:anywhere }
+.stmt { width:100%; min-height:3.4rem; margin:.5rem 0 0; padding:.5rem;
+  border:1px solid var(--line); border-radius:6px; background:var(--bg);
+  color:var(--fg); font:inherit; font-size:.9rem; }
+.row { display:flex; gap:.4rem; margin-top:.6rem; flex-wrap:wrap; align-items:center }
+.row button { border:1px solid var(--line); background:var(--bg);
+  color:var(--fg); border-radius:6px; padding:.25rem .6rem; cursor:pointer;
+  font-size:.82rem }
+.row button.sel { border-color:var(--acc); color:var(--acc); font-weight:700 }
+.row button.approve.sel { border-color:var(--ok); color:var(--ok) }
+.row button.reject.sel { border-color:var(--bad); color:var(--bad) }
+.links a { margin-right:.6rem; font-size:.82rem; color:var(--acc) }
+.note { flex:1; min-width:12rem; padding:.3rem .5rem; font:inherit;
+  font-size:.84rem; border:1px solid var(--line); border-radius:6px;
+  background:var(--bg); color:var(--fg); }
+.saved { color:var(--ok); font-size:.8rem; opacity:0; transition:opacity .2s }
+.saved.show { opacity:1 }
+.status-pill { font-size:.75rem; padding:.1rem .5rem; border-radius:999px;
+  border:1px solid var(--line); color:var(--muted) }
+.count { color:var(--muted); font-size:.85rem }
+</style>
+</head>
+<body>
+<header>
+  <h1>paperforge review</h1>
+  <nav id="tabs"></nav>
+  <span class="count" id="count"></span>
+</header>
+<main id="main"></main>
+<script>
+"use strict";
+let current = null;
+
+async function loadTabs() {
+  const arts = await (await fetch("/api/artifacts")).json();
+  const nav = document.getElementById("tabs");
+  nav.innerHTML = "";
+  for (const a of arts) {
+    const b = document.createElement("button");
+    b.textContent = `${a.label} (${a.count})`;
+    b.onclick = () => { current = a.name; render(); refreshTabs(); };
+    b.dataset.name = a.name;
+    nav.appendChild(b);
+  }
+  if (!current && arts.length) current = arts[0].name;
+  refreshTabs();
+}
+function refreshTabs() {
+  document.querySelectorAll("#tabs button").forEach(b =>
+    b.classList.toggle("active", b.dataset.name === current));
+}
+
+async function render() {
+  const items = await (await fetch(`/api/items?artifact=${current}`)).json();
+  const main = document.getElementById("main");
+  document.getElementById("count").textContent = `${items.length} items`;
+  main.innerHTML = "";
+  for (const it of items) main.appendChild(card(it));
+}
+
+function card(it) {
+  const el = document.createElement("div");
+  el.className = "card";
+  const links = (it.links || []).map(l =>
+    `<a href="${l.href}" target="paper">${l.label} ↗</a>`).join("");
+  el.innerHTML = `
+    <h3>${it.title} <span class="status-pill">${it.status}</span></h3>
+    <div class="body">${it.body}</div>
+    ${it.text !== null && it.text !== undefined
+      ? `<textarea class="stmt">${it.text}</textarea>` : ""}
+    <div class="links">${links}</div>
+    <div class="row choices"></div>
+    <div class="row">
+      <input class="note" placeholder="note to the pipeline (optional)"
+             value="${(it.note || "").replace(/"/g, "&quot;")}">
+      <button class="save">save note${it.text != null ? " + text" : ""}</button>
+      <span class="saved">saved ✓</span>
+    </div>`;
+  const choices = el.querySelector(".choices");
+  for (const c of it.choices) {
+    const b = document.createElement("button");
+    b.textContent = c;
+    if (c.includes("approved") || c.startsWith("known")) b.classList.add("approve");
+    if (c.includes("reject")) b.classList.add("reject");
+    if (c === it.status) b.classList.add("sel");
+    b.onclick = async () => {
+      await decide({ artifact: current, id: it.id, status: c });
+      choices.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+      b.classList.add("sel");
+      el.querySelector(".status-pill").textContent = c;
+      flash(el);
+      loadTabs();
+    };
+    choices.appendChild(b);
+  }
+  el.querySelector(".save").onclick = async () => {
+    const payload = { artifact: current, id: it.id,
+                      note: el.querySelector(".note").value };
+    const stmt = el.querySelector(".stmt");
+    if (stmt) payload.text = stmt.value;
+    await decide(payload);
+    flash(el);
+  };
+  return el;
+}
+
+async function decide(payload) {
+  const r = await fetch("/api/decide", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload) });
+  if (!r.ok) alert("save failed: " + (await r.text()));
+}
+function flash(el) {
+  const s = el.querySelector(".saved");
+  s.classList.add("show");
+  setTimeout(() => s.classList.remove("show"), 1200);
+}
+
+loadTabs().then(render);
+</script>
+</body>
+</html>
