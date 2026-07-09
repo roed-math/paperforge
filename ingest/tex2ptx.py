@@ -162,10 +162,32 @@ class Numbering:
 
 LABEL_RE = re.compile(r"\\label\{([^}]*)\}")
 
-# key -> compiled regex; set from --notation-map. Applied to every piece of
+# key -> (regex, scope). Set from --notation-map; applied to every piece of
 # math through convert_math (the single funnel), so wrapping is idempotent by
-# construction: the tex input never contains \notn.
-NOTATION_WRAPS: list[tuple[str, re.Pattern]] = []
+# construction: the tex input never contains \notn. A "scope" entry limits
+# wrapping to the named top-level divisions (for symbols like a bare Y whose
+# meaning is section-dependent).
+NOTATION_WRAPS: list[tuple[str, re.Pattern, frozenset | None]] = []
+_CURRENT_DIVISION: list[str] = [""]     # tag of the division being converted
+
+# --mathbb: restyle bold number-system letters to blackboard bold.
+MATHBB_LETTERS: str = ""
+_MATHBB_RE: re.Pattern | None = None
+
+
+def set_division(tag: str) -> None:
+    _CURRENT_DIVISION[0] = tag
+
+
+def set_mathbb(letters: str) -> None:
+    global MATHBB_LETTERS, _MATHBB_RE
+    MATHBB_LETTERS = letters
+    if letters:
+        # match \mathbf{Q} or \mathbf Q — a closing brace is consumed ONLY
+        # when the matching opening brace was (conditional group), else a
+        # brace belonging to an enclosing group would be eaten.
+        _MATHBB_RE = re.compile(
+            r"\\mathbf\s*(\{)?([" + letters + r"])(?(1)\})")
 
 
 def load_notation_wraps(map_path: Path) -> None:
@@ -176,16 +198,21 @@ def load_notation_wraps(map_path: Path) -> None:
             pat = re.escape(rec["match"]) + r"(?![a-zA-Z])"
         else:
             pat = rec["match"]          # authored regex, trusted
-        wraps.append((key, re.compile(pat), len(rec["match"])))
+        scope = frozenset(rec["scope"]) if rec.get("scope") else None
+        wraps.append((key, re.compile(pat), scope, len(rec["match"])))
     # longest match string first, so \WA never loses to a shorter prefix
-    wraps.sort(key=lambda t: -t[2])
-    NOTATION_WRAPS.extend((k, p) for k, p, _ in wraps)
+    wraps.sort(key=lambda t: -t[3])
+    NOTATION_WRAPS.extend((k, p, s) for k, p, s, _ in wraps)
 
 
 def convert_math(s: str) -> str:
-    """Math content: verbatim LaTeX (notation-wrapped), XML-escaped."""
+    """Math content: verbatim LaTeX (restyled + notation-wrapped), XML-escaped."""
     s = s.strip()
-    for key, pat in NOTATION_WRAPS:
+    if _MATHBB_RE is not None:
+        s = _MATHBB_RE.sub(r"\\mathbb{\2}", s)
+    for key, pat, scope in NOTATION_WRAPS:
+        if scope is not None and _CURRENT_DIVISION[0] not in scope:
+            continue
         s = pat.sub(lambda m, k=key: "\\notn{%s}{%s}" % (k, m.group(0)), s)
     return xml_escape(s)
 
@@ -705,6 +732,8 @@ def extract_macros(preamble: str) -> str:
         full = preamble[m.start():j + 1]
         if "\\MarkedDem" in full or "hyperref" in full:
             continue  # structural macro, rewritten at parse time
+        if _MATHBB_RE is not None:
+            full = _MATHBB_RE.sub(r"\\mathbb{\2}", full)
         macros.append(full)
     return "\n".join(macros)
 
@@ -733,9 +762,14 @@ def main() -> int:
     ap.add_argument("--notation-map", type=Path,
                     help="notation map JSON; wraps tracked notation in math "
                          "with \\notn{key}{...} at conversion time")
+    ap.add_argument("--mathbb", metavar="LETTERS", default="",
+                    help="restyle \\mathbf X -> \\mathbb{X} for these letters "
+                         "(e.g. QZFP), in math and in docinfo macros")
     args = ap.parse_args()
     if args.notation_map:
         load_notation_wraps(args.notation_map)
+    if args.mathbb:
+        set_mathbb(args.mathbb)
 
     tex = strip_comments(args.texfile.read_text())
     # expand the one structural macro before parsing
@@ -792,6 +826,7 @@ def main() -> int:
         el = "appendix" if num.in_appendix else "section"
         tag = tagify(s["label"]) if s["label"] else "sec-" + slugify(s["title"])
         num.record(tag, el, s["label"], disp)
+        set_division(tag)               # scoped notation wrapping
         ctx = Ctx(refs, num, lean_map)
         ctx.emit(f'<{el} xml:id="{tag}">')
         ctx.indent += 1
