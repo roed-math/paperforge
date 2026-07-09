@@ -4,7 +4,9 @@
     <!-- HTML with the enhancement layer (lean links, detail slider, notation hovers) -->
     <target name="web" format="html" xsl="custom-html.xsl" output-dir="output/web"/>
     <!-- arXiv/print PDF at the full detail level -->
-    <target name="print" format="pdf" output-dir="output/print"/>
+    <target name="print" format="pdf" xsl="print-latex.xsl" output-dir="output/print"/>
+    <!-- Journal-style (amsart) LaTeX for arXiv submission -->
+    <target name="arxiv" format="latex" xsl="arxiv-latex.xsl" output-dir="output/arxiv"/>
     <!-- Default-detail LaTeX: excludes higher detail tiers via publication/print.ptx -->
     <target name="print-default" format="latex"
             publication="print.ptx" output-dir="print-default"/>

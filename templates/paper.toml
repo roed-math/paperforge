@@ -44,6 +44,8 @@ bib     = "source/references.bib"
 # is rewritten to \notnfar (visible dotted underline) by ingest/notation_far.py.
 # Derived data — recompute after edits; never hand-write \notnfar.
 far_words = 1500
+near_hover_delay_ms = 400   # plain symbols
+far_hover_delay_ms = 1000   # \notnfar-marked symbols
 
 [detail]
 default_level = 1              # PDF/default tier: render content with level <= this
@@ -60,5 +62,7 @@ sources = ["references/"]
 # FOLLOW-UP: the spike imports the core XSL by absolute path. Until the portable
 # import is sorted, point this at the installed PreTeXt core for this machine.
 pretext_core_xsl = "/Users/roed/.ptx/2.43.2/core/xsl/pretext-html.xsl"
+# siblings, used by the latex targets (paper-init fills the xsl placeholders):
+#   pretext-latex.xsl  and  pretext-latex-classic.xsl  in the same core dir
 web_output   = "output/web"
 print_output = "output/print"

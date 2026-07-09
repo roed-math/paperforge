@@ -15,9 +15,15 @@ Bootstraps an instance repo from the tool's templates.
    `inputs/draft/`.
 3. Interview the author for `paper.toml` values: title, AI-draft path, Lean
    project path, `lean_docs_base`, detail `default_level`/`max_level`.
-4. Set the `lean.docs.base` XSL param and the core-XSL import path in
-   `xsl/custom-html.xsl` from config (see the HTML-FEATURES follow-up on the
-   portable import path).
+4. Fill the placeholders from config:
+   - `xsl/custom-html.xsl`: `@@PRETEXT_CORE_XSL@@`, `lean.docs.base`;
+   - `xsl/print-latex.xsl` / `xsl/arxiv-latex.xsl`:
+     `@@PRETEXT_CORE_LATEX_XSL@@` / `@@PRETEXT_CORE_LATEX_CLASSIC_XSL@@`
+     (siblings of `pretext_core_xsl` in the installed core);
+   - copy `templates/build-web.sh` -> `scripts/build-web.sh` and fill
+     `@@PAPERFORGE_ROOT@@`, `@@AI_DRAFT@@`, `@@LEAN_ROOT@@`,
+     `@@MATHBB_LETTERS@@`; create `notation/`, `content/insertions/`,
+     `references/extra-biblio.xml` skeletons.
 5. Print the next commands: drop the AI draft + style corpus + reference PDFs, then
    run `ingest-draft`.
 
