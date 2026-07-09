@@ -346,6 +346,7 @@ class RefMap:
 class Ctx:
     refs: RefMap
     num: Numbering
+    lean_map: dict = field(default_factory=dict)  # tag -> [{"decl": ...}, ...]
     out: list[str] = field(default_factory=list)
     indent: int = 0
 
@@ -491,6 +492,10 @@ def convert_theoremlike(env: str, body: str, ctx: Ctx) -> None:
     parse_blocks(body[p:], ctx)
     ctx.indent -= 1
     ctx.emit("</statement>")
+    # formalization badge(s): custom <lean> children, rendered by custom XSL
+    # (block badge in HTML, dropped in the arXiv/latex conversion)
+    for rec in ctx.lean_map.get(tag, [])[:3]:
+        ctx.emit(f'<lean ref="{rec["decl"]}">{rec["decl"]}</lean>')
     ctx.indent -= 1
     ctx.emit(f"</{PTX_THM[env]}>")
 
@@ -700,6 +705,9 @@ def main() -> int:
     ap.add_argument("--out", type=Path, help="PreTeXt output dir (source/)")
     ap.add_argument("--numbering", type=Path, help="numbering JSON output")
     ap.add_argument("--snapshot", default="current", help="snapshot name for JSON metadata")
+    ap.add_argument("--lean-map", type=Path,
+                    help="tag -> decl-links JSON (from lean_declmap.py); "
+                         "emits <lean> badges on matching statements")
     args = ap.parse_args()
 
     tex = strip_comments(args.texfile.read_text())
@@ -709,6 +717,7 @@ def main() -> int:
     labels = set(LABEL_RE.findall(tex)) | set()
     refs = RefMap(labels)
     num = Numbering()
+    lean_map = json.load(open(args.lean_map)) if args.lean_map else {}
 
     preamble = tex.split(r"\begin{document}")[0]
     title, author = extract_title_author(preamble)
@@ -756,7 +765,7 @@ def main() -> int:
         el = "appendix" if num.in_appendix else "section"
         tag = tagify(s["label"]) if s["label"] else "sec-" + slugify(s["title"])
         num.record(tag, el, s["label"], disp)
-        ctx = Ctx(refs, num)
+        ctx = Ctx(refs, num, lean_map)
         ctx.emit(f'<{el} xml:id="{tag}">')
         ctx.indent += 1
         ctx.emit(f"<title>{convert_inline(s['title'], refs)}</title>")

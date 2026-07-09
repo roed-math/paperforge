@@ -19,34 +19,22 @@ from pathlib import Path
 from . import Finding, ptx_files, instance_root
 
 _LEAN_REF = re.compile(r"<lean\b[^>]*\bref=\"([^\"]+)\"")
-_DECL = re.compile(
-    r"^\s*(?:@\[[^\]]*\]\s*)*"
-    r"(?:private\s+|protected\s+|noncomputable\s+|nonrec\s+|partial\s+|unsafe\s+)*"
-    r"(theorem|lemma|def|abbrev|instance|structure|inductive|class|opaque)\s+"
-    r"([A-Za-z_][\w'.]*)",
-    re.M,
-)
-_NS = re.compile(r"^\s*namespace\s+([A-Za-z_][\w'.]*)", re.M)
-_END = re.compile(r"^\s*end\b\s*([A-Za-z_][\w'.]*)?", re.M)
+
+
+def _load_scanner():
+    """Reuse the comment- and section-aware scanner from ingest/lean_declmap.py
+    (kept there so the extractor and this validator can never disagree)."""
+    import importlib.util
+    path = Path(__file__).resolve().parents[2] / "ingest" / "lean_declmap.py"
+    spec = importlib.util.spec_from_file_location("paperforge_lean_declmap", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.iter_decls
 
 
 def _lean_decls(project: Path) -> set[str]:
-    """Fully-qualified declaration names found by a line-wise namespace-stack scan."""
-    names: set[str] = set()
-    for lean in project.rglob("*.lean"):
-        if ".lake" in lean.parts:
-            continue
-        stack: list[str] = []
-        for line in lean.read_text(errors="ignore").splitlines():
-            if m := _NS.match(line):
-                stack.append(m.group(1))
-            elif _END.match(line) and stack:
-                stack.pop()
-            elif m := _DECL.match(line):
-                base = m.group(2)
-                prefix = ".".join(stack)
-                names.add(f"{prefix}.{base}" if prefix else base)
-    return names
+    iter_decls = _load_scanner()
+    return {full for full, _doc, _f, _ln in iter_decls(project)}
 
 
 def _refs(config: dict) -> list[tuple[str, Path]]:
