@@ -808,6 +808,10 @@ def main() -> int:
     ap.add_argument("--notation-map", type=Path,
                     help="notation map JSON; wraps tracked notation in math "
                          "with \\notn{key}{...} at conversion time")
+    ap.add_argument("--extra-biblio", type=Path,
+                    help="biblio fragment file merged into <references>")
+    ap.add_argument("--insertions", type=Path,
+                    help="directory of anchored content fragments to merge")
     ap.add_argument("--disambig", type=Path,
                     help="block-grain sense decisions for ambiguous notation "
                          "(notation/disambiguation.json); unclassified "
@@ -820,6 +824,10 @@ def main() -> int:
         load_notation_wraps(args.notation_map, args.disambig)
     if args.mathbb:
         set_mathbb(args.mathbb)
+    if args.extra_biblio and args.extra_biblio.exists():
+        load_extra_biblio(args.extra_biblio)
+    if args.insertions and args.insertions.exists():
+        load_insertions(args.insertions)
 
     tex = strip_comments(args.texfile.read_text())
     # expand the one structural macro before parsing
@@ -952,10 +960,85 @@ def extract_references(secs):
     return None
 
 
+EXTRA_BIBLIO: list[str] = []       # <biblio> fragments merged into <references>
+INSERTIONS: dict[str, list[tuple[str, str]]] = {}  # anchor tag -> [(pos, xml)]
+
+
+def load_extra_biblio(path: Path) -> None:
+    '''references/extra-biblio.xml: a fragment file whose <biblio> children are
+    appended to the converted bibliography (process-1 additions that must
+    survive re-ingestion).'''
+    text = path.read_text()
+    import re as _re
+    EXTRA_BIBLIO.extend(m.group(0) for m in _re.finditer(
+        r"<biblio\b.*?</biblio>", text, _re.S))
+
+
+def load_insertions(d: Path) -> None:
+    '''content/insertions/*.ptx: fragments with a first-line comment header
+    <!-- anchor: TAG position: after|append --> merged at the anchor element.
+    "after" places the fragment after the element's closing tag; "append"
+    places it before the closing tag (inside, at the end).'''
+    import re as _re
+    for f in sorted(d.glob("*.ptx")):
+        text = f.read_text()
+        m = _re.search(r"<!--\s*anchor:\s*(\S+)\s+position:\s*(\w+)\s*-->", text)
+        if not m:
+            warn(f"insertion {f.name}: missing anchor header — skipped")
+            continue
+        body = text[m.end():].strip("\n")
+        INSERTIONS.setdefault(m.group(1), []).append((m.group(2), body))
+
+
+def apply_insertions(secs) -> int:
+    '''Merge insertion fragments into the section line lists by anchor tag.'''
+    n = 0
+    for k, (tag, el, lines) in enumerate(secs):
+        text = "\n".join(lines)
+        for anchor, frags in INSERTIONS.items():
+            marker = f'xml:id="{anchor}"'
+            if marker not in text:
+                continue
+            for pos, body in frags:
+                if pos == "after":
+                    # after the anchor element's closing tag: find the element
+                    # name, then its close following the marker
+                    import re as _re
+                    mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker), text)
+                    if not mm:
+                        continue
+                    close = f"</{mm.group(1)}>"
+                    i = text.find(close, mm.end())
+                    if i >= 0:
+                        j = i + len(close)
+                        text = text[:j] + "\n" + body + text[j:]
+                        n += 1
+                else:  # append (inside, at end)
+                    import re as _re
+                    mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker), text)
+                    if not mm:
+                        continue
+                    close = f"</{mm.group(1)}>"
+                    i = text.find(close, mm.end())
+                    if i >= 0:
+                        text = text[:i] + body + "\n" + text[i:]
+                        n += 1
+        secs[k] = (tag, el, text.split("\n"))
+    return n
+
+
 def write_tree(outdir: Path, title: str, author: str, macros: str,
                abstract: str, secs) -> None:
     outdir.mkdir(parents=True, exist_ok=True)
+    napplied = apply_insertions(secs)
+    if INSERTIONS and napplied < sum(len(v) for v in INSERTIONS.values()):
+        warn(f"only {napplied} of {sum(len(v) for v in INSERTIONS.values())} "
+             f"insertions found their anchor")
     refs_block = extract_references(secs)
+    if refs_block and EXTRA_BIBLIO:
+        closing = refs_block.pop()          # </references>
+        refs_block.extend("      " + b for b in EXTRA_BIBLIO)
+        refs_block.append(closing)
     main_incl = "\n".join(f'    <xi:include href="./{tag}.ptx"/>'
                           for tag, el, _ in secs if el == "section")
     apx_incl = "\n".join(f'      <xi:include href="./{tag}.ptx"/>'
