@@ -1,23 +1,48 @@
 ---
 name: intro-novelty
-description: Add language to the introduction articulating what parts of the proof are interesting or novel, grounded in what is actually proved.
+description: Write the introduction's novelty exposition FROM the approved claims of the novelty dossier (novelty/claims.json) — never from scratch. Requirement 7; see docs/NOVELTY.md.
 ---
 
 # intro-novelty
 
-Requirement 7. The AI draft rarely says *why the work matters*; this adds it.
+The novelty paragraphs are the part of an introduction LLM-generated text most
+often gets wrong, because they require literature knowledge. This skill
+therefore does NOT invent novelty statements: it renders the **dossier**.
 
-## Behavior
-- Read the whole document first, plus `style.advice`, to identify genuinely novel
-  or interesting steps (a new lemma, an unexpected reduction, a technique reused in
-  a new setting).
-- Draft intro prose that names these explicitly and points forward to where they
-  appear (cross-referencing the relevant `xml:id`s).
-- Where a claim of novelty is a value judgment, surface it to the author for
-  confirmation via a `<!-- @forge: novelty claim — confirm? -->` marker rather than
-  asserting it unilaterally.
+## Pipeline position
+
+1. `ingest/novelty_evidence.py` collects deterministic seeds (novel-node
+   inventory, definition genericity + fan-in, contrast language, census
+   events, Mathlib import profile, method units).
+2. An LLM pass drafts typed claims (the five classes: novel method /
+   surprising result / weakened hypotheses / generalizable definition /
+   cross-field ingredient), verifies each against the local reference PDFs
+   and targeted web searches, and records the search trail — including
+   demotions (a "novel method" that turns out classical becomes an
+   ingredient claim, with the discovery recorded).
+3. **The author reviews `novelty/claims.json`** — flips statuses to
+   `author-approved` / `author-rejected`, edits statements, adds context.
+4. THIS skill writes prose from `author-approved` claims only.
+
+## Writing rules
+
+- One paragraph group per theme, not per claim; merge claims that tell one
+  story (e.g. class-2 obstruction + class-5 toolkit = "why p=2 is different
+  and what it costs").
+- Keep the dossier's hedges: "to our knowledge", "we found no earlier
+  instance" — never strengthen a hedge the evidence doesn't support.
+- Cite the works named in each claim's evidence; the citations must resolve
+  (references validator).
+- Weakened-hypothesis claims (class 3) may point at the Lean statement — the
+  machine-checkable form is itself worth a sentence.
+- Traceability: emit an XML comment before each paragraph listing the claim
+  ids it renders, so drift between dossier and prose is diffable.
+- Output goes through `content/insertions/` (survives re-ingestion), anchored
+  in the introduction; plagiarism-checked like all generated prose.
 
 ## Guardrails
-- Do not overclaim. Novelty statements that the paper does not support are a
-  correctness/credibility risk, not just a style issue.
-- Generated prose → plagiarism-checked; match the author's corpus.
+
+- `proposed` and `needs-discussion` claims are invisible to this skill.
+- If the introduction already contains novelty statements not backed by any
+  approved claim, flag them to the author rather than silently keeping or
+  deleting them.
