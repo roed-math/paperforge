@@ -55,6 +55,9 @@ pretext build web && pretext build print  # HTML + arXiv LaTeX
 
 The interactive HTML layer (detail slider, notation hovers, `<lean>` links) is
 **proven** — see `pretext-template/` (ported from the de-risking spike) and
-[docs/HTML-FEATURES.md](docs/HTML-FEATURES.md). The skills and most validators are
-currently **specified stubs**; the reference implementation pattern is shown in
-`validators/paperforge_validators/lean_links.py`.
+[docs/HTML-FEATURES.md](docs/HTML-FEATURES.md). Validators are real except
+`references.py` (still a specified stub): `lean_links`, `section_summaries`,
+`directives`, `numbering_drift`, `notation_order`, and `plagiarism` all run on
+the first instance (fixture tests in `validators/tests/`). The generative
+skills are specified but not yet exercised; `ingest-draft` runs through
+`ingest/tex2ptx.py`.

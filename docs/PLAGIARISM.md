@@ -7,12 +7,24 @@ a **deterministic validator plus human review**, not a generation prompt.
 
 ## What the validator does (`validators/plagiarism.py`)
 
-- Builds an n-gram index (default 7-word shingles, configurable) over the
-  **sources**: the AI draft and every PDF in `references/`.
-- Scans the generated PreTeXt prose (excluding math, `verbatim` directives, and
-  quoted+attributed passages) for shingles that overlap a source.
-- Reports each overlapping span with its location (`xml:id`) and the source it
-  matches, ranked by length. It does **not** edit anything.
+- Builds an n-gram index (default 7-word shingles, `[plagiarism] ngram`) over
+  the **external sources** — the PDFs/texts under `[plagiarism] sources`
+  (typically `references/`; PDF text extracted via `pdftotext`, cached under
+  `.cache/paperforge/`).
+- Scans the assembled document's prose (excluding math, code, bibliography
+  entries, and quoted+attributed passages) for maximal runs of ≥ n consecutive
+  words that appear verbatim in a source.
+- Severity: runs ≥ `error_run` words (default 12) are **errors**; shorter
+  matches are **warnings** (7–10-word stock mathematical phrases are common and
+  usually fine, but deserve a glance).
+- **Provenance labeling**: the AI draft is *not* a flag-source — the paper
+  legitimately derives from it. It is the provenance baseline: each finding is
+  labeled `inherited-from-draft` (the draft's author-LLM already carried the
+  overlap — the source-copying happened upstream) or `pipeline-added` (the
+  overlap entered during our generation and is ours to fix).
+- Console output caps at `max_findings` (default 25); the complete report is
+  written to `report_json` (default `output/plagiarism-report.json`). It does
+  **not** edit anything.
 
 ## What is exempt
 
