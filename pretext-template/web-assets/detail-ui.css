@@ -43,3 +43,7 @@
 @media (prefers-color-scheme: dark) {
   .notation-popup { background: #22262b; color: #e8e8e8; border-color: rgba(255,255,255,.18); }
 }
+
+/* Far notation: symbol used long after its definition (notation_far.py).
+   Visible-by-default affordance; near uses stay invisible until hover. */
+.ptxfar { text-decoration: underline dotted 1px; text-underline-offset: 3px; opacity: .98; }

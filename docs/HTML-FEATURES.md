@@ -54,3 +54,20 @@ nodes. The slider needs no such wait — its `<details>` are static HTML.
   copied into the output dir. Needs a proper asset step.
 - `custom-html.xsl` imports the core via an absolute path; find the portable
   import path before this is truly reusable across machines/versions.
+
+## 4. Far-notation affordance (`\notnfar` / `.ptxfar`)
+
+Notation hovers are invisible until hover by design — but a symbol whose
+definition is many pages back deserves a visible cue. `ingest/notation_far.py`
+computes, in reading order, the word distance from each `\notn{key}` use to its
+defining site (`<notation key>` element or first use inside a `<definition>`),
+and rewrites uses beyond `[notation] far_words` (default 1500) to
+`\notnfar{key}{sym}` = `\class{ptxfar}{\class{ptxnotn-key}{sym}}`. Granularity
+is per symbol occurrence — two symbols in the same displayed equation can
+differ. CSS gives `.ptxfar` a default-visible dotted underline; the hover JS is
+unaffected (`ptxfar` deliberately does not share the `ptxnotn-` prefix).
+
+Derived data: idempotent, recomputed after edits, never hand-written.
+Pre-definition uses are left unmarked (that is a `notation_order` error).
+Print safety: `\providecommand{\class}[2]{#2}` is injected into the LaTeX
+preamble (arxiv/print XSLs) so both macros degrade to their symbol in PDF.

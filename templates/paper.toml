@@ -39,13 +39,22 @@ advice = "style-corpus/ADVICE.md"
 pdf_dir = "references/"         # local copies of cited works (for the ref check)
 bib     = "source/references.bib"
 
+[notation]
+# HTML hover affordance: a \notn use more than far_words after its definition
+# is rewritten to \notnfar (visible dotted underline) by ingest/notation_far.py.
+# Derived data — recompute after edits; never hand-write \notnfar.
+far_words = 1500
+
 [detail]
 default_level = 1              # PDF/default tier: render content with level <= this
 max_level     = 3              # highest tier the HTML slider exposes
 
 [plagiarism]
-ngram   = 7                    # flag verbatim spans of >= this many words
-sources = ["inputs/draft/main.tex", "references/"]
+ngram     = 7      # flag verbatim spans of >= this many words
+error_run = 12     # runs at least this long are errors (shorter: warnings)
+# External sources only. The AI draft ([inputs] ai_draft) is NOT a flag-source:
+# it is the provenance baseline (inherited-from-draft vs pipeline-added labels).
+sources = ["references/"]
 
 [build]
 # FOLLOW-UP: the spike imports the core XSL by absolute path. Until the portable

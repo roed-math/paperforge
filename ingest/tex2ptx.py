@@ -854,6 +854,7 @@ def write_tree(outdir: Path, title: str, author: str, macros: str,
     <macros>
 {macros}
 \\newcommand{{\\notn}}[2]{{\\class{{ptxnotn-#1}}{{#2}}}}
+\\newcommand{{\\notnfar}}[2]{{\\class{{ptxfar}}{{\\class{{ptxnotn-#1}}{{#2}}}}}}
     </macros>
   </docinfo>
   <article xml:id="paper">

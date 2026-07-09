@@ -9,6 +9,7 @@
       <!-- Notation convention: \notn{key}{symbol} tags a symbol for the HTML
            hover (class ptxnotn-<key>) AND the notation_order validator. -->
       \newcommand{\notn}[2]{\class{ptxnotn-#1}{#2}}
+      \newcommand{\notnfar}[2]{\class{ptxfar}{\class{ptxnotn-#1}{#2}}}
     </macros>
     <latex-image-preamble>\usepackage{tikz}</latex-image-preamble>
   </docinfo>
