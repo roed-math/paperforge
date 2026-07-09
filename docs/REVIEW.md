@@ -46,7 +46,24 @@ Decisions write back into the native artifact files immediately; there is no
 second source of truth, no export step, and `git diff` shows exactly what the
 author decided. The server is stdlib-only and binds to localhost.
 
-## 2. In-chat batch review (complementary)
+## 2. Margin-review mode (read the paper, decide in place)
+
+Pages served through the review server also carry a **margin-review layer**:
+every pipeline decision anchored to a block on the page appears as a
+status-colored marker in the right margin (inline on narrow screens).
+Clicking a marker expands a compact decision panel in place — the rendered
+statement, a summary of the evidence, status buttons, an autosaving note,
+and a "full details" deep link into the dashboard card. A floating strip
+shows the page's pending count with prev/next navigation between pending
+markers. A straight readthrough of the paper doubles as the review pass,
+with full context always on screen; the dashboard remains the right surface
+for evidence-heavy judgments and statement editing.
+
+Division-level decisions (anchored at a whole section) expand their panel
+just below the section heading. All three surfaces — dashboard, margin mode,
+and chat — write the same artifacts through the same endpoint.
+
+## 3. In-chat batch review (complementary)
 
 For a handful of pending items, asking Claude to "review the novelty claims
 with me" is faster: Claude presents each pending item with its evidence and

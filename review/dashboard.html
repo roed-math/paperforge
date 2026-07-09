@@ -276,6 +276,7 @@ function knowlButton(link, host) {
 function card(it) {
   const el = document.createElement("div");
   el.className = "card";
+  el.dataset.itemId = it.id;
 
   const h = document.createElement("h3");
   h.textContent = it.title + " ";
@@ -448,7 +449,25 @@ function card(it) {
   return el;
 }
 
-loadTabs().then(render);
+async function boot() {
+  await loadTabs();
+  // deep link: /review#artifact/itemId (from the paper's margin panels)
+  const m = location.hash.match(/^#(\w+)\/(.+)$/);
+  if (m && arts.some(a => a.name === m[1])) current = m[1];
+  refreshTabs();
+  await render();
+  if (m) {
+    const id = decodeURIComponent(m[2]);
+    const target = [...document.querySelectorAll(".card")]
+      .find(c => c.dataset.itemId === id);
+    if (target) {
+      target.scrollIntoView({ block: "center" });
+      target.style.outline = "2px solid var(--acc)";
+      setTimeout(() => { target.style.outline = ""; }, 1500);
+    }
+  }
+}
+boot();
 </script>
 </body>
 </html>

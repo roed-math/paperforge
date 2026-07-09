@@ -460,6 +460,30 @@ class Handler(SimpleHTTPRequestHandler):
             if a:
                 return self._json(a.items())
             return self._json({"error": "unknown artifact"}, 400)
+        if url.path == "/api/margin":
+            q = parse_qs(url.query)
+            page = q.get("page", [""])[0]
+            out = []
+            for a in ADAPTERS.values():
+                for it in a.items():
+                    anchors = [l["tag"] for l in it.get("links", [])
+                               if tag_page(l["tag"]) == page]
+                    if not anchors:
+                        continue
+                    out.append({
+                        "artifact": a.name, "artifact_label": a.label,
+                        "id": it["id"], "title": it["title"],
+                        "status": it["status"], "choices": it["choices"],
+                        "choice_help": it.get("choice_help", {}),
+                        "note": it.get("note", ""),
+                        "text": it.get("text"),
+                        "summary": "; ".join(
+                            f"{f['label']}: {f['value']}" if f.get("value")
+                            else f["label"]
+                            for f in it.get("fields", [])[:3]),
+                        "anchors": anchors,
+                    })
+            return self._json(out)
         if url.path == "/api/tags":
             out = {}
             for tag, r in _items().items():
@@ -479,6 +503,14 @@ class Handler(SimpleHTTPRequestHandler):
             if frag is None:
                 return self._json({"error": f"no fragment for {tag}"}, 404)
             return self._json({"html": frag})
+        if url.path == "/review-paper-margin.js":
+            body = (HERE / "paper-margin.js").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if url.path == "/review-paper-tags.js":
             body = (HERE / "paper-tags.js").read_bytes()
             self.send_response(200)
@@ -495,7 +527,8 @@ class Handler(SimpleHTTPRequestHandler):
                 # build in output/web is untouched)
                 html = target.read_text(errors="ignore").replace(
                     "</body>",
-                    '<script src="/review-paper-tags.js"></script></body>', 1)
+                    '<script src="/review-paper-tags.js"></script>'
+                    '<script src="/review-paper-margin.js"></script></body>', 1)
                 body = html.encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
