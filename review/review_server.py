@@ -622,10 +622,34 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main() -> int:
-    port = 8765
-    server = ThreadingHTTPServer(("127.0.0.1", port),
-                                 partial(Handler, directory=str(ROOT)))
-    print(f"paperforge review: http://127.0.0.1:{port}/review")
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--port", type=int, default=8765)
+    args = ap.parse_args()
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", args.port),
+                                     partial(Handler, directory=str(ROOT)))
+    except OSError as e:
+        if e.errno != 48:               # EADDRINUSE
+            raise
+        # is the occupant one of ours? then just point at it
+        import urllib.request
+        try:
+            with urllib.request.urlopen(
+                    f"http://127.0.0.1:{args.port}/api/artifacts",
+                    timeout=2) as r:
+                if r.status == 200:
+                    print(f"review server already running: "
+                          f"http://127.0.0.1:{args.port}/review")
+                    print("(kill it with:  lsof -ti tcp:%d | xargs kill)"
+                          % args.port)
+                    return 0
+        except Exception:
+            pass
+        print(f"port {args.port} is taken by something else — "
+              f"try:  --port {args.port + 1}")
+        return 1
+    print(f"paperforge review: http://127.0.0.1:{args.port}/review")
     print(f"instance: {ROOT}")
     server.serve_forever()
     return 0
