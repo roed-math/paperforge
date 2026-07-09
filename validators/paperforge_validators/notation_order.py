@@ -34,17 +34,38 @@ def _inside_definition(el) -> bool:
                for anc in el.iterancestors())
 
 
+def _load_map(config: dict):
+    """Optional notation map: defsite ids per key + standard exemptions."""
+    import json
+    from pathlib import Path
+    from . import instance_root
+    rel = config.get("notation", {}).get("map", "notation/notation-map.json")
+    path = instance_root(config) / rel
+    if not path.exists():
+        return {}, set()
+    entries = json.load(open(path))
+    defsites = {k: r["defsite"] for k, r in entries.items() if r.get("defsite")}
+    standard = {k for k, r in entries.items() if r.get("standard")}
+    return defsites, standard
+
+
 def check(config: dict) -> list[Finding]:
     try:
         root = load_assembled(config)
     except Exception as e:
         return [Finding("notation_order", "error", f"cannot assemble source: {e}")]
 
+    map_defsites, standard = _load_map(config)
     findings: list[Finding] = []
     defined_at: dict[str, int] = {}              # key -> defining position
     uses: dict[str, list[tuple[int, str]]] = {}  # key -> [(pos, location-id)]
+    id_pos: dict[str, int] = {}                  # xml:id -> position
 
     for pos, el in enumerate(root.iter()):
+        if isinstance(el.tag, str):
+            xid = el.get("{http://www.w3.org/XML/1998/namespace}id")
+            if xid and xid not in id_pos:
+                id_pos[xid] = pos
         tag = _localname(el)
         if tag is None:
             continue
@@ -71,7 +92,15 @@ def check(config: dict) -> list[Finding]:
                 if key not in defined_at and _inside_definition(el):
                     defined_at[key] = pos
 
+    # map-declared defining sites (resolved xml:id -> position); a map defsite
+    # takes precedence over the fallback first-use-inside-<definition>
+    for key, xid in map_defsites.items():
+        if xid in id_pos:
+            defined_at[key] = min(defined_at.get(key, id_pos[xid]), id_pos[xid])
+
     for key, sites in sorted(uses.items()):
+        if key in standard:
+            continue        # universally-known notation: hover only, no order gate
         if key not in defined_at:
             findings.append(Finding(
                 "notation_order", "error",
@@ -85,7 +114,7 @@ def check(config: dict) -> list[Finding]:
                 "notation_order", "error",
                 f"notation '{key}' used before its definition "
                 f"({len(early)} early use(s))", early[0]))
-    for key in sorted(set(defined_at) - set(uses)):
+    for key in sorted(set(defined_at) - set(uses) - standard):
         findings.append(Finding(
             "notation_order", "warning",
             f"notation '{key}' is defined but never used"))

@@ -162,10 +162,32 @@ class Numbering:
 
 LABEL_RE = re.compile(r"\\label\{([^}]*)\}")
 
+# key -> compiled regex; set from --notation-map. Applied to every piece of
+# math through convert_math (the single funnel), so wrapping is idempotent by
+# construction: the tex input never contains \notn.
+NOTATION_WRAPS: list[tuple[str, re.Pattern]] = []
+
+
+def load_notation_wraps(map_path: Path) -> None:
+    entries = json.load(open(map_path))
+    wraps = []
+    for key, rec in entries.items():
+        if rec.get("kind") == "macro":
+            pat = re.escape(rec["match"]) + r"(?![a-zA-Z])"
+        else:
+            pat = rec["match"]          # authored regex, trusted
+        wraps.append((key, re.compile(pat), len(rec["match"])))
+    # longest match string first, so \WA never loses to a shorter prefix
+    wraps.sort(key=lambda t: -t[2])
+    NOTATION_WRAPS.extend((k, p) for k, p, _ in wraps)
+
 
 def convert_math(s: str) -> str:
-    """Math content: verbatim LaTeX, XML-escaped."""
-    return xml_escape(s.strip())
+    """Math content: verbatim LaTeX (notation-wrapped), XML-escaped."""
+    s = s.strip()
+    for key, pat in NOTATION_WRAPS:
+        s = pat.sub(lambda m, k=key: "\\notn{%s}{%s}" % (k, m.group(0)), s)
+    return xml_escape(s)
 
 
 def convert_inline(s: str, refs: "RefMap") -> str:
@@ -708,7 +730,12 @@ def main() -> int:
     ap.add_argument("--lean-map", type=Path,
                     help="tag -> decl-links JSON (from lean_declmap.py); "
                          "emits <lean> badges on matching statements")
+    ap.add_argument("--notation-map", type=Path,
+                    help="notation map JSON; wraps tracked notation in math "
+                         "with \\notn{key}{...} at conversion time")
     args = ap.parse_args()
+    if args.notation_map:
+        load_notation_wraps(args.notation_map)
 
     tex = strip_comments(args.texfile.read_text())
     # expand the one structural macro before parsing

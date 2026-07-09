@@ -8,10 +8,7 @@
   //     <notation> list (single source of truth). Entry formats:
   //       key: "definition html"                          (no context link)
   //       key: {html: "...", href: "sec-x.html#def-id"}   (with context link)
-  var NOTATION = {
-    "Qp":  "The field \\(\\Qp\\) of \\(p\\)-adic numbers.",
-    "Gq2": "The absolute Galois group \\(G_{\\mathbb{Q}_2}=\\operatorname{Gal}(\\overline{\\mathbb{Q}}_2/\\mathbb{Q}_2)\\)."
-  };
+  var NOTATION = window.PAPERFORGE_NOTATION || {};
 
   // Hover delays (ms). A far-marked symbol (.ptxfar wrapper, see
   // ingest/notation_far.py) waits FAR_DELAY before showing its definition;

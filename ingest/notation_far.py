@@ -41,6 +41,7 @@ from pathlib import Path
 
 NOTN = re.compile(r"\\notn(?:far)?\{([^}]*)\}")
 NOTATION_EL = re.compile(r"<notation\b[^>]*\bkey=\"([^\"]*)\"")
+XMLID = re.compile(r"xml:id=\"([^\"]*)\"")
 DEF_OPEN = re.compile(r"<definition\b")
 DEF_CLOSE = re.compile(r"</definition>")
 TAG = re.compile(r"<[^>]+>")
@@ -59,14 +60,20 @@ def word_count(xml_chunk: str) -> int:
     return len(WORD.findall(TAG.sub(" ", xml_chunk)))
 
 
-def collect_and_rewrite(files: list[Path], far_words: int, dry: bool):
+def collect_and_rewrite(files: list[Path], far_words: int, dry: bool,
+                        map_defsites: dict[str, str] | None = None,
+                        skip_keys: set[str] | None = None):
     """Two passes over the same reading order.
 
     Pass 1: running word position of every \\notn use and every defining site
-    (<notation key> element, or first use inside a <definition> block).
-    Pass 2: rewrite each use whose distance from its key's definition exceeds
-    the threshold.
+    (<notation key> element, first use inside a <definition> block, or a
+    map-declared defsite xml:id). Pass 2: rewrite each use whose distance from
+    its key's definition exceeds the threshold. ``skip_keys`` (standard
+    notation) are never far-marked.
     """
+    map_defsites = map_defsites or {}
+    skip_keys = skip_keys or set()
+    id_wanted = {v: k for k, v in map_defsites.items()}   # xml:id -> key
     defined_at: dict[str, int] = {}
     uses = []          # (file, match-ordinal-within-file, key, word-pos)
     pos = 0
@@ -77,6 +84,7 @@ def collect_and_rewrite(files: list[Path], far_words: int, dry: bool):
         events = sorted(
             [(m.start(), "use", m) for m in NOTN.finditer(text)]
             + [(m.start(), "notation", m) for m in NOTATION_EL.finditer(text)]
+            + [(m.start(), "xmlid", m) for m in XMLID.finditer(text)]
             + [(m.start(), "defopen", m) for m in DEF_OPEN.finditer(text)]
             + [(m.start(), "defclose", m) for m in DEF_CLOSE.finditer(text)])
         ordinal = 0
@@ -85,6 +93,10 @@ def collect_and_rewrite(files: list[Path], far_words: int, dry: bool):
             cursor = start
             if kind == "notation":
                 defined_at.setdefault(m.group(1), pos)
+            elif kind == "xmlid":
+                key = id_wanted.get(m.group(1))
+                if key:
+                    defined_at.setdefault(key, pos)
             elif kind == "defopen":
                 depth += 1
             elif kind == "defclose":
@@ -103,7 +115,7 @@ def collect_and_rewrite(files: list[Path], far_words: int, dry: bool):
         matches = list(NOTN.finditer(text))
         far_ordinals = {
             ordinal for (uf, ordinal, key, wpos) in uses
-            if uf == f and key in defined_at
+            if uf == f and key in defined_at and key not in skip_keys
             and wpos - defined_at[key] > far_words}
         out, last = [], 0
         for k, m in enumerate(matches):
@@ -131,14 +143,27 @@ def main() -> int:
     args = ap.parse_args()
 
     far_words = args.far_words
+    ncfg = {}
     cfg_file = args.instance / "paper.toml"
-    if far_words is None and cfg_file.exists():
+    if cfg_file.exists():
         with open(cfg_file, "rb") as fh:
-            far_words = tomllib.load(fh).get("notation", {}).get("far_words")
-    far_words = far_words if far_words is not None else 1500
+            ncfg = tomllib.load(fh).get("notation", {})
+    if far_words is None:
+        far_words = ncfg.get("far_words", 1500)
+
+    map_defsites: dict[str, str] = {}
+    skip_keys: set[str] = set()
+    map_path = args.instance / ncfg.get("map", "notation/notation-map.json")
+    if map_path.exists():
+        import json
+        entries = json.load(open(map_path))
+        map_defsites = {k: r["defsite"] for k, r in entries.items()
+                        if r.get("defsite")}
+        skip_keys = {k for k, r in entries.items() if r.get("standard")}
 
     files = reading_order_files(args.instance / "source")
-    defined, uses, changed = collect_and_rewrite(files, far_words, args.dry_run)
+    defined, uses, changed = collect_and_rewrite(
+        files, far_words, args.dry_run, map_defsites, skip_keys)
     far_total = sum(changed.values())
     print(f"{len(uses)} \\notn use(s), {len(defined)} defined key(s), "
           f"threshold {far_words} words")
