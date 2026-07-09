@@ -4,12 +4,21 @@
 (function () {
   "use strict";
 
-  // --- Notation registry. In the real tool this is generated from the
-  //     document's <notation> list / a single source of truth. ---
+  // --- Notation registry. Generated per-instance from the document's
+  //     <notation> list (single source of truth). Entry formats:
+  //       key: "definition html"                          (no context link)
+  //       key: {html: "...", href: "sec-x.html#def-id"}   (with context link)
   var NOTATION = {
     "Qp":  "The field \\(\\Qp\\) of \\(p\\)-adic numbers.",
     "Gq2": "The absolute Galois group \\(G_{\\mathbb{Q}_2}=\\operatorname{Gal}(\\overline{\\mathbb{Q}}_2/\\mathbb{Q}_2)\\)."
   };
+
+  // Hover delays (ms). A far-marked symbol (.ptxfar wrapper, see
+  // ingest/notation_far.py) waits FAR_DELAY before showing its definition;
+  // near symbols show promptly. Override via window.paperforgeNotation.
+  var CFG = window.paperforgeNotation || {};
+  var FAR_DELAY_MS = CFG.farDelayMs != null ? CFG.farDelayMs : 1000;
+  var NEAR_DELAY_MS = CFG.nearDelayMs != null ? CFG.nearDelayMs : 150;
 
   function ready(fn) {
     if (document.readyState !== "loading") fn();
@@ -72,18 +81,35 @@
     var pop = document.createElement("div");
     pop.className = "notation-popup";
     document.body.appendChild(pop);
-    var hideTimer;
+    var hideTimer, showTimer;
+
+    // Moving the mouse INTO the popup keeps it open (it contains a link).
+    pop.addEventListener("mouseenter", function () { clearTimeout(hideTimer); });
+    pop.addEventListener("mouseleave", scheduleHide);
 
     function keyOf(el) {
       var m = /\bptxnotn-([A-Za-z0-9]+)\b/.exec(el.className);
       return m ? m[1] : null;
     }
+    function entryFor(k) {
+      var v = NOTATION[k];
+      if (!v) return null;
+      return typeof v === "string" ? { html: v, href: null } : v;
+    }
+    function isFar(el) {
+      return !!(el.closest && el.closest(".ptxfar"));
+    }
     function show(el) {
       var k = keyOf(el);
-      if (!k || !NOTATION[k]) return;
+      var entry = k && entryFor(k);
+      if (!entry) return;
       clearTimeout(hideTimer);
-      pop.innerHTML =
-        '<span class="notation-popup-key">' + k + '</span>' + NOTATION[k];
+      var html = '<span class="notation-popup-key">' + k + '</span>' + entry.html;
+      if (entry.href) {
+        html += '<a class="notation-ctx-link" href="' + entry.href +
+                '">see definition in context &#x2197;</a>';
+      }
+      pop.innerHTML = html;
       var r = el.getBoundingClientRect();
       // Place BELOW the symbol so the popup never covers the text being read.
       pop.style.top = (window.scrollY + r.bottom + 6) + "px";
@@ -93,15 +119,22 @@
         MathJax.typesetPromise([pop]).catch(function () {});
       }
     }
-    function hide() {
-      hideTimer = setTimeout(function () { pop.classList.remove("show"); }, 80);
+    function scheduleHide() {
+      clearTimeout(showTimer);
+      hideTimer = setTimeout(function () { pop.classList.remove("show"); }, 180);
     }
     nodes.forEach(function (el) {
+      var delay = isFar(el) ? FAR_DELAY_MS : NEAR_DELAY_MS;
       el.setAttribute("tabindex", "0");        // keyboard-accessible
-      el.addEventListener("mouseenter", function () { show(el); });
-      el.addEventListener("mouseleave", hide);
+      el.addEventListener("mouseenter", function () {
+        clearTimeout(hideTimer);
+        clearTimeout(showTimer);
+        showTimer = setTimeout(function () { show(el); }, delay);
+      });
+      el.addEventListener("mouseleave", scheduleHide);
+      // keyboard focus: show promptly regardless of far/near (a11y)
       el.addEventListener("focus", function () { show(el); });
-      el.addEventListener("blur", hide);
+      el.addEventListener("blur", scheduleHide);
     });
   }
 

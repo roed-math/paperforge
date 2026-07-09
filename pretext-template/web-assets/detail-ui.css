@@ -35,7 +35,7 @@
   pointer-events: none; opacity: 0; transform: translateY(-2px);
   transition: opacity .1s ease, transform .1s ease;
 }
-.notation-popup.show { opacity: 1; transform: translateY(0); }
+.notation-popup.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
 .notation-popup .notation-popup-key {
   display: block; font-weight: 600; opacity: .55;
   font-size: .72rem; letter-spacing: .02em; margin-bottom: .2rem;
@@ -44,6 +44,14 @@
   .notation-popup { background: #22262b; color: #e8e8e8; border-color: rgba(255,255,255,.18); }
 }
 
-/* Far notation: symbol used long after its definition (notation_far.py).
-   Visible-by-default affordance; near uses stay invisible until hover. */
-.ptxfar { text-decoration: underline dotted 1px; text-underline-offset: 3px; opacity: .98; }
+/* Far notation (notation_far.py): NO rest-state affordance. On hover the
+   cursor is the help question-mark; the definition popup appears after a
+   delay (FAR_DELAY_MS in detail-ui.js) with a see-in-context link. */
+.ptxfar, .ptxfar * { cursor: help; }
+
+.notation-popup .notation-ctx-link {
+  display: block; margin-top: .4rem; font-size: .78rem;
+  opacity: .85; text-decoration: none; border-top: 1px solid rgba(128,128,128,.25);
+  padding-top: .3rem;
+}
+.notation-popup .notation-ctx-link:hover { text-decoration: underline; }
