@@ -27,6 +27,11 @@ artifact (`author_note`).
 - **Everything autosaves**: status clicks save immediately; notes and
   statement edits save on a 700 ms debounce and on blur. There is no save
   button; a "saved ✓" flash confirms each write.
+- **Citations are first-class**: the insert-citation picker shows each
+  entry's author and title (not just the key); citation chips in the live
+  preview hover to the full bibliography entry and — when a local copy is
+  matched in `references/` (author-surname-gated filename matching) — click
+  through to the PDF itself.
 
 Decisions write back into the native artifact files immediately; there is no
 second source of truth, no export step, and `git diff` shows exactly what the

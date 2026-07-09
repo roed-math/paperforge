@@ -74,7 +74,8 @@ main { max-width:62rem; margin:0 auto; padding:1rem 1.2rem 4rem; }
 .pickrow { display:flex; gap:.4rem; align-items:center; margin-top:.3rem }
 .pickrow select { font:inherit; font-size:.8rem; background:var(--bg);
   color:var(--fg); border:1px solid var(--line); border-radius:6px;
-  padding:.2rem .4rem; max-width:16rem }
+  padding:.2rem .4rem; max-width:34rem }
+.preview .cite.haspdf { text-decoration:underline dotted }
 .pickrow label { font-size:.78rem; color:var(--muted) }
 .note { flex:1; min-width:12rem; padding:.3rem .5rem; font:inherit;
   font-size:.84rem; border:1px solid var(--line); border-radius:6px;
@@ -288,7 +289,7 @@ function card(it) {
     ensureBib().then(bib => {
       for (const k of Object.keys(bib).sort())
         sel.insertAdjacentHTML("beforeend",
-          `<option value="${k}">${k}</option>`);
+          `<option value="${k}">${k.replace(/^bib-/, "")} — ${esc(bib[k].short)}</option>`);
     });
     sel.onchange = () => {
       if (!sel.value) return;
@@ -328,10 +329,13 @@ function card(it) {
       h = h.replace(/---/g, "—").replace(/--/g, "–").replace(/~/g, " ");
       preview.innerHTML = h;
       preview.querySelectorAll(".cite").forEach(c => {
-        const k = c.dataset.k;
+        const k = c.dataset.k, e = bib[k];
+        if (e && e.pdf) c.classList.add("haspdf");
         c.onmouseenter = () => showTip(c, `<b>${esc(k)}</b>` +
-          esc(bib[k] || "no such bibliography entry — fix the key or add a new_refs entry"));
+          esc(e ? e.text : "no such bibliography entry — fix the key or add a new_refs entry") +
+          (e && e.pdf ? "<br><b>📄 local PDF — click to open</b>" : ""));
         c.onmouseleave = hideTip;
+        if (e && e.pdf) c.onclick = () => window.open(e.pdf, "refpdf");
       });
       await ensureMacros(preview);
       await typeset(preview);

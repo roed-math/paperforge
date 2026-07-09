@@ -78,33 +78,69 @@ def extract_fragment(tag: str) -> str | None:
     return lxml.html.tostring(el, encoding="unicode")
 
 
+def _bib_pdf(text: str, pdfs: list[Path]) -> str | None:
+    """Local PDF for a bibliography entry: long-word token overlap with the
+    filename, but ONLY if an author surname (a capitalized word from the
+    entry's author segment) also appears in the filename — generic title
+    words like 'local fields' otherwise cause false matches."""
+    toks = {w.lower() for w in re.findall(r"[A-Za-z]{5,}", text)}
+    # true author surnames: capitalized word preceded by initials ("B. Kahn"),
+    # minus journal-abbreviation artifacts ("Canad. J. Math" -> "Math")
+    JUNK = {"math", "pure", "appl", "algebra", "invent", "acad", "nauk",
+            "izv", "canad", "proc", "amer", "reine", "angew", "ann", "ser",
+            "soc", "trans", "monographs", "press", "springer"}
+    surnames = {w.lower() for w in
+                re.findall(r"(?:[A-Z]\.\s*)+([A-Z][A-Za-z'\-]{2,})", text)
+                } - JUNK
+    best, score = None, 0
+    for p in pdfs:
+        ftoks = {w.lower() for w in re.findall(r"[A-Za-z]{4,}", p.stem)}
+        hits = len(surnames & ftoks)
+        # a STRICT MAJORITY of the entry's authors must appear in the
+        # filename (rules out co-author overlap with a different work)
+        if not surnames or hits * 2 <= len(surnames):
+            continue
+        s = len((toks - surnames) & ftoks) + 3 * hits
+        if s > score:
+            best, score = p, s
+    if best is not None and score >= 4:
+        from urllib.parse import quote
+        return "/references/" + quote(best.name)
+    return None
+
+
 def collect_bib() -> dict:
-    """bib key -> entry text: converted bibliography + extra-biblio +
-    new_refs proposed by pending novelty claims."""
-    out = {}
+    """bib key -> {text, short, pdf}: converted bibliography + extra-biblio +
+    new_refs proposed by pending novelty claims; pdf = local copy when one
+    matches in references/."""
+    raw = {}
     main = ROOT / "source" / "main.ptx"
     if main.exists():
-        import re as _re
-        for m in _re.finditer(
+        for m in re.finditer(
                 r'<biblio[^>]*xml:id="(bib-[^"]+)"[^>]*>(.*?)</biblio>',
-                main.read_text(), _re.S):
-            out[m.group(1)] = _re.sub(r"<[^>]+>", "",
-                                      " ".join(m.group(2).split()))
+                main.read_text(), re.S):
+            raw[m.group(1)] = " ".join(
+                re.sub(r"<[^>]+>", " ", m.group(2)).split())
     extra = ROOT / "references" / "extra-biblio.xml"
     if extra.exists():
-        import re as _re
-        for m in _re.finditer(
+        for m in re.finditer(
                 r'<biblio[^>]*xml:id="(bib-[^"]+)"[^>]*>(.*?)</biblio>',
-                extra.read_text(), _re.S):
-            out.setdefault(m.group(1), _re.sub(r"<[^>]+>", "",
-                                               " ".join(m.group(2).split())))
+                extra.read_text(), re.S):
+            raw.setdefault(m.group(1), " ".join(
+                re.sub(r"<[^>]+>", " ", m.group(2)).split()))
     claims = ROOT / "novelty" / "claims.json"
     if claims.exists():
-        import re as _re
         for c in json.load(open(claims))["claims"].values():
             for k, v in (c.get("new_refs") or {}).items():
-                out.setdefault(k, _re.sub(r"<[^>]+>", "", v)
+                raw.setdefault(k, re.sub(r"\\[a-zA-Z]+|[{}]|<[^>]+>", "",
+                                         " ".join(v.split()))
                                + "  [NEW — materializes on approval]")
+    pdfs = sorted((ROOT / "references").glob("*.pdf"))
+    out = {}
+    for k, text in raw.items():
+        out[k] = {"text": text,
+                  "short": text[:90] + ("…" if len(text) > 90 else ""),
+                  "pdf": _bib_pdf(text, pdfs)}
     return out
 
 
