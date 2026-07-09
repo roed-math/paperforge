@@ -14,6 +14,21 @@ lean_project = "/Users/roed/claude/gq2-lean"
 # `lean.docs.base` XSL param in custom-html.xsl.
 lean_docs_base = "https://roed.example/gq2-lean/docs/"
 
+# Known historical snapshots of the paper (the draft is a moving target; the
+# formalization may cite an older version's numbering). Each snapshot gets a
+# numbering map under [crosswalk] dir.
+# [snapshots.v1]
+# description = "version the formalization tracked"
+# tex = "path/to/old.tex"      # preferred: exact numbering via the simulator
+# pdf = "path/to/old.pdf"      # fallback: recover statement numbers by title-match
+
+[crosswalk]
+# Stable-tag system: xml:ids are the canonical identity of every numbered item;
+# printed numbers are presentation-specific (LaTeX global vs PreTeXt per-section
+# vs old snapshots). See the numbering_drift validator and ingest/lean_ledger.py.
+dir = "crosswalk/"
+baseline = "v1"    # which snapshot the formalization's prose citations use
+
 [style]
 # Prior writing samples that define the author's voice (verbatim reference).
 corpus = "style-corpus/"

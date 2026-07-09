@@ -1,30 +1,50 @@
 ---
 name: ingest-draft
-description: Convert the AI-written LaTeX draft into PreTeXt source, preserving structure and math, tagging notation and formalization links.
+description: Convert the AI-written LaTeX draft into PreTeXt source using the deterministic tex2ptx engine, then review its warnings and fix judgment cases.
 ---
 
 # ingest-draft
 
-Turns `inputs.ai_draft` (LaTeX) into PreTeXt `source/`.
+Turns `inputs.ai_draft` (LaTeX) into PreTeXt `source/`. **Script-first**: the
+deterministic converter does the mechanical conversion; Claude handles only the
+residue. This matters because drafts are moving targets — re-ingestion must be
+cheap, reproducible, and produce stable tags. Never hand-convert what the script
+can do; improve the script instead (the improvement ports to every future paper).
 
-## Behavior
-- Map LaTeX sectioning → PreTeXt `<chapter>/<section>/<subsection>`, each with an
-  `xml:id` (needed for directives, cross-refs, and knowls).
-- Map theorem-like environments → `<theorem>/<lemma>/<definition>/<proof>` etc.
-- Keep math verbatim inside `<m>`/`<me>`/`<md>`; move `\newcommand`s into
-  `docinfo/macros`.
-- Where the draft references a formalized result, insert a `<lean ref="...">`
-  (leave `ref` as a best guess for the author/`lean_links` validator to confirm).
-- Where notation is introduced, wrap it with the `\notn{key}{symbol}` convention
-  and add a `<notation>` list entry (single source of truth for the hover + the
-  `notation_order` validator).
-- Do **not** invent mathematical content. This is a *structural* conversion; gaps
-  (missing bridging text, summaries) are filled by later skills, not here.
+## Procedure
 
-## Output
-PreTeXt source that builds, plus a report of: unmapped environments, guessed
-`<lean>` refs, and notation it could not classify.
+1. Run the engine (one parse, two outputs):
 
-## Plagiarism note
-The AI draft is a plagiarism *source* (see docs/PLAGIARISM.md). Ingestion is
-structural, but any prose it rewrites is subject to the plagiarism validator.
+       python3 <paperforge>/ingest/tex2ptx.py <draft.tex> \
+           --out source/ --numbering crosswalk/numbering-current.json \
+           --snapshot current
+
+2. `xmllint --noout source/*.ptx`, then `pretext build web` must succeed.
+3. **Validate the numbering simulation** the first time (and after big draft
+   changes): compile the draft with pdflatex and diff the simulator against the
+   `.aux` (`\newlabel` entries are ground truth). The gq2 paper validated
+   300/300; a new paper's conventions (per-section equations, unshared counters)
+   may need simulator tweaks in `Numbering`.
+4. Triage the converter's warnings — these are the judgment cases for Claude:
+   - `unlabeled <env>` / `unlabeled equation` — drift hazards. Add a `\label`
+     upstream in the draft if possible; otherwise assign a semantic tag.
+   - `unhandled macro in prose` — extend `convert_inline` (preferred) or fix by
+     hand if truly one-off.
+   - stray labels, tables (`@forge: verify table conversion` comments).
+5. Re-run and confirm idempotency: a second run over the same draft must
+   produce an identical tree (`git diff --stat` clean).
+
+## What the engine guarantees
+
+- Structure: sections/subsections (appendices → `<backmatter>`), theorem-like
+  envs with shared-counter semantics, proofs reparented inside statements,
+  display math inside `<p>`, bibliography → `<references>` in backmatter.
+- Tags: xml:id = LaTeX label with `:` → `-`; these are the stable identity every
+  other tool (crosswalk, lean ledgers, `<lean>` links, directives) keys on.
+- Numbering map: tag → printed number for this snapshot, for the crosswalk.
+
+## What Claude must NOT do here
+
+- Do not invent mathematical content — gaps (bridging text, summaries) belong
+  to later skills.
+- Do not rename tags on re-ingestion; tag stability is the contract.

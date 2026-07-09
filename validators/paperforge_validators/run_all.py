@@ -16,6 +16,7 @@ from . import (
     section_summaries,
     directives,
     notation_order,
+    numbering_drift,
     references,
     plagiarism,
 )
@@ -25,6 +26,7 @@ CHECKS = [
     section_summaries,
     directives,
     notation_order,
+    numbering_drift,
     references,
     plagiarism,
 ]

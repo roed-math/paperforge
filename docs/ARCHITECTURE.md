@@ -68,6 +68,7 @@ The original 12 requirements, each assigned to a mechanism:
 | 10 | Reference check vs local PDFs | **validator** (stage 1) + human (stage 2) | `validators/references.py`, `references/` |
 | 11 | Feedback / background additions | **skill** + stale-target **validator** | `skills/apply-directives`, `validators/directives.py`, [DIRECTIVES.md](DIRECTIVES.md) |
 | 12 | Links to the formalization | `<lean>` feature + `checkdecls` **validator** | `pretext-template/xsl/`, `validators/lean_links.py` |
+| 13 | Bidirectional reference stability (Lean cites the paper across restructurings) | stable tags + snapshot numbering maps + drift **validator** + Lean-side ledgers | `ingest/tex2ptx.py --numbering`, `validators/numbering_drift.py`, `ingest/lean_ledger.py` |
 
 ## Moving-target strategy
 

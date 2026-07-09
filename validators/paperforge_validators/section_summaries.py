@@ -9,8 +9,9 @@ from lxml import etree
 
 from . import Finding, ptx_files
 
-# Divisions we require a summary for. subsubsection intentionally excluded.
-_DIVISIONS = {"chapter", "section", "subsection"}
+# Divisions we require a summary for (requirement 6 targets sections; finer
+# divisions are the section-summaries skill's judgment call, not a gate).
+_DIVISIONS = {"chapter", "section", "appendix"}
 
 
 def check(config: dict) -> list[Finding]:

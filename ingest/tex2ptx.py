@@ -753,10 +753,11 @@ def main() -> int:
             num.in_appendix = True
             num.section = ""
         disp = num.enter_section()
+        el = "appendix" if num.in_appendix else "section"
         tag = tagify(s["label"]) if s["label"] else "sec-" + slugify(s["title"])
-        num.record(tag, "section", s["label"], disp)
+        num.record(tag, el, s["label"], disp)
         ctx = Ctx(refs, num)
-        ctx.emit(f'<section xml:id="{tag}">')
+        ctx.emit(f'<{el} xml:id="{tag}">')
         ctx.indent += 1
         ctx.emit(f"<title>{convert_inline(s['title'], refs)}</title>")
         wrap_intro = bool(s["subs"]) and s["content"].strip()
@@ -781,10 +782,12 @@ def main() -> int:
             ctx.indent -= 1
             ctx.emit("</subsection>")
         ctx.indent -= 1
-        ctx.emit("</section>")
-        out_lines_per_sec.append((tag, reparent_proofs(ctx.out)))
+        ctx.emit(f"</{el}>")
+        out_lines_per_sec.append((tag, el, reparent_proofs(ctx.out)))
 
     if args.out:
+        title = convert_inline(title, refs)
+        author = convert_inline(author, refs)
         write_tree(args.out, title, author, macros, abstract_ptx,
                    out_lines_per_sec)
     if args.numbering:
@@ -800,10 +803,42 @@ def main() -> int:
 HEADER = '<?xml version="1.0" encoding="utf-8"?>\n'
 
 
+def extract_references(secs):
+    """Pull a <references>...</references> block out of section line lists."""
+    ref_lines = None
+    for k, (tag, el, lines) in enumerate(secs):
+        for i, ln in enumerate(lines):
+            if ln.lstrip().startswith("<references"):
+                depth = 0
+                for j in range(i, len(lines)):
+                    if lines[j].lstrip().startswith("<references"):
+                        depth += 1
+                    if lines[j].strip() == "</references>":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                ref_lines = lines[i:j + 1]
+                secs[k] = (tag, el, lines[:i] + lines[j + 1:])
+                return ref_lines
+    return None
+
+
 def write_tree(outdir: Path, title: str, author: str, macros: str,
                abstract: str, secs) -> None:
     outdir.mkdir(parents=True, exist_ok=True)
-    includes = "\n".join(f'    <xi:include href="./{tag}.ptx"/>' for tag, _ in secs)
+    refs_block = extract_references(secs)
+    main_incl = "\n".join(f'    <xi:include href="./{tag}.ptx"/>'
+                          for tag, el, _ in secs if el == "section")
+    apx_incl = "\n".join(f'      <xi:include href="./{tag}.ptx"/>'
+                         for tag, el, _ in secs if el == "appendix")
+    backmatter = ""
+    if apx_incl or refs_block:
+        refs_part = ("\n".join("      " + ln.strip() for ln in refs_block)
+                     if refs_block else "")
+        backmatter = f"""    <backmatter xml:id="backmatter">
+{apx_incl}
+{refs_part}
+    </backmatter>"""
     main = f"""{HEADER}<pretext xml:lang="en-US" xmlns:xi="http://www.w3.org/2001/XInclude">
   <docinfo>
     <document-id>gq2-paper</document-id>
@@ -822,15 +857,16 @@ def write_tree(outdir: Path, title: str, author: str, macros: str,
 {abstract}
       </abstract>
     </frontmatter>
-{includes}
+{main_incl}
+{backmatter}
   </article>
 </pretext>
 """
     (outdir / "main.ptx").write_text(main)
-    for tag, lines in secs:
+    for tag, el, lines in secs:
         body = "\n".join(lines)
         (outdir / f"{tag}.ptx").write_text(HEADER + body + "\n")
-    print(f"wrote {outdir}/main.ptx + {len(secs)} section files")
+    print(f"wrote {outdir}/main.ptx + {len(secs)} division files")
 
 
 if __name__ == "__main__":
