@@ -1,0 +1,12 @@
+[project]
+name = "paperforge-validators"
+version = "0.0.1"
+description = "Deterministic, CI-gating checks for a paperforge instance."
+requires-python = ">=3.11"
+dependencies = ["lxml", "pyyaml"]
+
+[project.scripts]
+paperforge-check = "paperforge_validators.run_all:main"
+
+[tool.setuptools]
+packages = ["paperforge_validators"]

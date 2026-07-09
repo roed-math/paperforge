@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8'?>
+<pretext xml:lang="en-US" xmlns:xi="http://www.w3.org/2001/XInclude">
+
+  <docinfo>
+    <document-id>author-ShortTitle</document-id>
+    <macros>
+      \newcommand{\Q}{\mathbb{Q}}
+      \newcommand{\Qp}{\mathbb{Q}_p}
+      <!-- Notation convention: \notn{key}{symbol} tags a symbol for the HTML
+           hover (class ptxnotn-<key>) AND the notation_order validator. -->
+      \newcommand{\notn}[2]{\class{ptxnotn-#1}{#2}}
+    </macros>
+    <latex-image-preamble>\usepackage{tikz}</latex-image-preamble>
+  </docinfo>
+
+  <article xml:id="paper">
+    <title>Title of the paper</title>
+
+    <!-- Sections are added by ingest-draft, each with an xml:id and an
+         <introduction> summary (enforced by the section_summaries validator). -->
+    <section xml:id="sec-introduction">
+      <title>Introduction</title>
+      <introduction>
+        <p>One-paragraph summary (filled by section-summaries / intro-novelty).</p>
+      </introduction>
+      <p>
+        Example conventions — a formalization link
+        <lean ref="Namespace.decl">Namespace.decl</lean>, tagged notation
+        <m>\notn{Qp}{\Qp}</m>, and a detail tier below.
+      </p>
+      <remark xml:id="rmk-example" component="detail-expanded" detail-level="2">
+        <title>Optional elaboration</title>
+        <p>Shown at slider level 2; excluded from the default PDF build.</p>
+      </remark>
+    </section>
+  </article>
+
+</pretext>

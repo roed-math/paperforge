@@ -1,0 +1,40 @@
+# paperforge instance config. Copied into a new instance by `paper-init`.
+# Paths are relative to the instance repo root unless absolute.
+
+[paper]
+title = "Title of the paper"
+instance_name = "gq2"          # short slug; used for output filenames
+
+[inputs]
+# The AI-written LaTeX draft. Also serves as a plagiarism baseline (see below).
+ai_draft = "inputs/draft/main.tex"
+# The Lean formalization: a lake project root (may be an absolute path elsewhere).
+lean_project = "/Users/roed/claude/gq2-lean"
+# How <lean ref="X"> becomes a docs URL (doc-gen4 / Verso output). Sets the
+# `lean.docs.base` XSL param in custom-html.xsl.
+lean_docs_base = "https://roed.example/gq2-lean/docs/"
+
+[style]
+# Prior writing samples that define the author's voice (verbatim reference).
+corpus = "style-corpus/"
+# Free-text advice on mathematical writing, fed to every generative skill.
+advice = "style-corpus/ADVICE.md"
+
+[references]
+pdf_dir = "references/"         # local copies of cited works (for the ref check)
+bib     = "source/references.bib"
+
+[detail]
+default_level = 1              # PDF/default tier: render content with level <= this
+max_level     = 3              # highest tier the HTML slider exposes
+
+[plagiarism]
+ngram   = 7                    # flag verbatim spans of >= this many words
+sources = ["inputs/draft/main.tex", "references/"]
+
+[build]
+# FOLLOW-UP: the spike imports the core XSL by absolute path. Until the portable
+# import is sorted, point this at the installed PreTeXt core for this machine.
+pretext_core_xsl = "/Users/roed/.ptx/2.43.2/core/xsl/pretext-html.xsl"
+web_output   = "output/web"
+print_output = "output/print"

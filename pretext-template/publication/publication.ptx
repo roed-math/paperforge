@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<publication>
+    <!-- directories are relative to the main source PreTeXt file -->
+    <source>
+        <directories external="../assets" generated="../generated-assets"/>
+    </source>
+
+    <common>
+        <!--<journal name="ams" /> -->
+    </common>
+
+    <!-- Detail tier, HTML side: render remarks as born-hidden (click-to-expand) knowls -->
+    <html>
+        <knowl remark="yes"/>
+    </html>
+</publication>
