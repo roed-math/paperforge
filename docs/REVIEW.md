@@ -12,12 +12,21 @@ and a bad one for the author. Two review surfaces exist:
     # open http://127.0.0.1:8765/review
 
 One tab per artifact, one card per decision: the statement (editable where
-the artifact carries prose, e.g. novelty claims), the evidence bullets, the
-current status, one-click status buttons, and a free-text **note to the
-pipeline** persisted into the artifact (`author_note`). Crucially, each card
-links its paper anchors into the *built paper* (`/paper/...` serves
-`output/web/`), so the anchored theorem — with notation hovers and lean
-badges — is one click away while judging.
+the artifact carries prose, e.g. novelty claims), structured evidence fields,
+status buttons, and a free-text **note to the pipeline** persisted into the
+artifact (`author_note`).
+
+- **Knowl-style context**: each paper anchor opens *in place* as an
+  expandable panel containing the anchored element from the built paper,
+  typeset with the paper's own macro block (fetched from `output/web`); a
+  small ↗ still opens the full page.
+- **Help hovertext everywhere**: every field label and every status choice
+  carries question-mark-style hover documentation (the adapters own the help
+  text; the (?) after the choices shows the full legend) — the same idiom as
+  the paper's notation hovers.
+- **Everything autosaves**: status clicks save immediately; notes and
+  statement edits save on a 700 ms debounce and on blur. There is no save
+  button; a "saved ✓" flash confirms each write.
 
 Decisions write back into the native artifact files immediately; there is no
 second source of truth, no export step, and `git diff` shows exactly what the

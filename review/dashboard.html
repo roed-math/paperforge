@@ -4,14 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>paperforge review</title>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(', '\\)']],
+                          displayMath: [['\\[', '\\]']] },
+                   options: { ignoreHtmlClass: 'nojax' } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js" async></script>
 <style>
 :root { --bg:#fff; --fg:#16181d; --muted:#5c6470; --card:#f6f7f9;
-        --line:#d8dce3; --acc:#2563eb; --ok:#15803d; --bad:#b91c1c;
-        --warn:#b45309; }
+        --line:#d8dce3; --acc:#2563eb; --ok:#15803d; --bad:#b91c1c; }
 @media (prefers-color-scheme: dark) {
   :root { --bg:#14161a; --fg:#e7e9ee; --muted:#9aa3b2; --card:#1d2026;
-          --line:#33383f; --acc:#7aa2ff; --ok:#4ade80; --bad:#f87171;
-          --warn:#fbbf24; }
+          --line:#33383f; --acc:#7aa2ff; --ok:#4ade80; --bad:#f87171; }
 }
 * { box-sizing:border-box }
 body { margin:0; background:var(--bg); color:var(--fg);
@@ -25,30 +29,63 @@ nav button { border:1px solid var(--line); background:var(--card);
   color:var(--fg); border-radius:999px; padding:.25rem .8rem; cursor:pointer;
   font-size:.85rem; }
 nav button.active { border-color:var(--acc); color:var(--acc); font-weight:600 }
-main { max-width:60rem; margin:0 auto; padding:1rem 1.2rem 4rem; }
+main { max-width:62rem; margin:0 auto; padding:1rem 1.2rem 4rem; }
+.blurb { color:var(--muted); font-size:.88rem; margin:.6rem 0 0 }
 .card { background:var(--card); border:1px solid var(--line);
-  border-radius:10px; padding: .9rem 1rem; margin: .8rem 0; }
-.card h3 { margin:0 0 .3rem; font-size:.95rem; font-family:ui-monospace,monospace }
-.body { color:var(--muted); font-size:.86rem; overflow-wrap:anywhere }
-.stmt { width:100%; min-height:3.4rem; margin:.5rem 0 0; padding:.5rem;
+  border-radius:10px; padding:.9rem 1rem; margin:.8rem 0; }
+.card h3 { margin:0 0 .4rem; font-size:.95rem;
+  font-family:ui-monospace,monospace; display:flex; gap:.6rem;
+  align-items:center; flex-wrap:wrap }
+.fields { font-size:.86rem; color:var(--muted) }
+.fields div { margin:.12rem 0; overflow-wrap:anywhere }
+.flabel { color:var(--fg); font-weight:600 }
+.stmt { width:100%; min-height:3.6rem; margin:.5rem 0 0; padding:.5rem;
   border:1px solid var(--line); border-radius:6px; background:var(--bg);
   color:var(--fg); font:inherit; font-size:.9rem; }
-.row { display:flex; gap:.4rem; margin-top:.6rem; flex-wrap:wrap; align-items:center }
+.row { display:flex; gap:.4rem; margin-top:.6rem; flex-wrap:wrap;
+  align-items:center }
 .row button { border:1px solid var(--line); background:var(--bg);
   color:var(--fg); border-radius:6px; padding:.25rem .6rem; cursor:pointer;
   font-size:.82rem }
 .row button.sel { border-color:var(--acc); color:var(--acc); font-weight:700 }
 .row button.approve.sel { border-color:var(--ok); color:var(--ok) }
 .row button.reject.sel { border-color:var(--bad); color:var(--bad) }
-.links a { margin-right:.6rem; font-size:.82rem; color:var(--acc) }
+.anchors { margin-top:.5rem; display:flex; gap:.5rem; flex-wrap:wrap }
+.anchors .kn { border:1px solid var(--line); border-radius:6px;
+  background:var(--bg); color:var(--acc); padding:.2rem .55rem;
+  cursor:pointer; font-size:.82rem }
+.anchors .kn.open { border-color:var(--acc); font-weight:600 }
+.anchors a { font-size:.78rem; color:var(--muted); align-self:center }
+.knowl { border-left:3px solid var(--acc); background:var(--bg);
+  margin:.6rem 0 0; padding:.6rem .8rem; border-radius:0 8px 8px 0;
+  font-size:.92rem; overflow-x:auto }
+.knowl article { margin:0 }
+.knowl a.lean-link { display:inline-block; font-size:.75rem;
+  font-family:ui-monospace,monospace; padding:.05rem .5rem;
+  margin:.15rem .3rem 0 0; border:1px solid rgba(25,100,60,.4);
+  border-radius:999px; background:rgba(40,160,90,.08);
+  text-decoration:none; color:inherit }
 .note { flex:1; min-width:12rem; padding:.3rem .5rem; font:inherit;
   font-size:.84rem; border:1px solid var(--line); border-radius:6px;
   background:var(--bg); color:var(--fg); }
-.saved { color:var(--ok); font-size:.8rem; opacity:0; transition:opacity .2s }
+.saved { color:var(--ok); font-size:.8rem; opacity:0; transition:opacity .25s }
 .saved.show { opacity:1 }
 .status-pill { font-size:.75rem; padding:.1rem .5rem; border-radius:999px;
   border:1px solid var(--line); color:var(--muted) }
 .count { color:var(--muted); font-size:.85rem }
+/* help hovertext — same idiom as the paper's notation popups */
+.help { cursor:help; border-bottom:1px dotted var(--muted) }
+.qmark { cursor:help; display:inline-block; width:1.05rem; height:1.05rem;
+  border:1px solid var(--muted); border-radius:50%; color:var(--muted);
+  font-size:.72rem; line-height:1.02rem; text-align:center; margin-left:.25rem;
+  user-select:none }
+#tooltip { position:absolute; z-index:50; max-width:26rem; background:var(--bg);
+  color:var(--fg); border:1px solid var(--line); border-radius:6px;
+  box-shadow:0 6px 18px rgba(0,0,0,.2); padding:.45rem .6rem;
+  font-size:.82rem; line-height:1.4; pointer-events:none; opacity:0;
+  transition:opacity .12s }
+#tooltip.show { opacity:1 }
+#tooltip b { display:block; margin-bottom:.15rem }
 </style>
 </head>
 <body>
@@ -57,13 +94,45 @@ main { max-width:60rem; margin:0 auto; padding:1rem 1.2rem 4rem; }
   <nav id="tabs"></nav>
   <span class="count" id="count"></span>
 </header>
-<main id="main"></main>
+<main>
+  <div class="blurb" id="blurb"></div>
+  <div id="cards"></div>
+</main>
+<div id="tooltip"></div>
 <script>
 "use strict";
-let current = null;
+let current = null, arts = [], macrosHtml = null;
 
+/* ---------------- tooltip (question-mark hovertext) ---------------- */
+const tip = document.getElementById("tooltip");
+function showTip(el, html) {
+  tip.innerHTML = html;
+  const r = el.getBoundingClientRect();
+  tip.style.top = (window.scrollY + r.bottom + 6) + "px";
+  tip.style.left = Math.min(window.scrollX + r.left,
+                            window.scrollX + innerWidth - 440) + "px";
+  tip.classList.add("show");
+}
+function hideTip() { tip.classList.remove("show"); }
+function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+function helpSpan(text, help) {
+  const s = document.createElement("span");
+  s.className = "help"; s.textContent = text;
+  s.onmouseenter = () => showTip(s, esc(help));
+  s.onmouseleave = hideTip;
+  return s;
+}
+function qmark(html) {
+  const q = document.createElement("span");
+  q.className = "qmark"; q.textContent = "?";
+  q.onmouseenter = () => showTip(q, html);
+  q.onmouseleave = hideTip;
+  return q;
+}
+
+/* ---------------- data ---------------- */
 async function loadTabs() {
-  const arts = await (await fetch("/api/artifacts")).json();
+  arts = await (await fetch("/api/artifacts")).json();
   const nav = document.getElementById("tabs");
   nav.innerHTML = "";
   for (const a of arts) {
@@ -79,72 +148,162 @@ async function loadTabs() {
 function refreshTabs() {
   document.querySelectorAll("#tabs button").forEach(b =>
     b.classList.toggle("active", b.dataset.name === current));
+  const a = arts.find(x => x.name === current);
+  document.getElementById("blurb").textContent = a ? a.blurb : "";
 }
 
 async function render() {
   const items = await (await fetch(`/api/items?artifact=${current}`)).json();
-  const main = document.getElementById("main");
   document.getElementById("count").textContent = `${items.length} items`;
+  const main = document.getElementById("cards");
   main.innerHTML = "";
   for (const it of items) main.appendChild(card(it));
 }
 
+/* ---------------- saving (all interactions autosave) ---------------- */
+async function decide(payload) {
+  const r = await fetch("/api/decide", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload) });
+  if (!r.ok) alert("save failed: " + (await r.text()));
+  return r.ok;
+}
+function flash(el) {
+  const s = el.querySelector(".saved");
+  s.classList.add("show");
+  setTimeout(() => s.classList.remove("show"), 1100);
+}
+function autosaver(el, it, getPayload) {
+  let t = null;
+  const fire = async () => { if (await decide(getPayload())) flash(el); };
+  return { input: () => { clearTimeout(t); t = setTimeout(fire, 700); },
+           blur: () => { clearTimeout(t); fire(); } };
+}
+
+/* ---------------- knowls (in-place paper context) ---------------- */
+async function ensureMacros(panel) {
+  if (macrosHtml === null)
+    macrosHtml = (await (await fetch("/api/macros")).json()).html || "";
+  if (macrosHtml && !document.getElementById("latex-macros")) {
+    const d = document.createElement("div");
+    d.innerHTML = macrosHtml;
+    d.style.display = "none";
+    document.body.prepend(d);
+    if (window.MathJax && MathJax.typesetPromise)
+      await MathJax.typesetPromise([d]).catch(() => {});
+  }
+}
+function knowlButton(link, host) {
+  const b = document.createElement("button");
+  b.className = "kn"; b.textContent = link.label;
+  let panel = null;
+  b.onclick = async () => {
+    if (panel) { panel.remove(); panel = null; b.classList.remove("open"); return; }
+    b.classList.add("open");
+    panel = document.createElement("div");
+    panel.className = "knowl";
+    panel.textContent = "loading…";
+    host.appendChild(panel);
+    const r = await fetch(`/api/fragment?tag=${encodeURIComponent(link.tag)}`);
+    if (!r.ok) { panel.textContent = "no preview — open in paper ↗"; return; }
+    await ensureMacros(panel);
+    panel.innerHTML = (await r.json()).html;
+    if (window.MathJax && MathJax.typesetPromise)
+      MathJax.typesetPromise([panel]).catch(() => {});
+  };
+  return b;
+}
+
+/* ---------------- cards ---------------- */
 function card(it) {
   const el = document.createElement("div");
   el.className = "card";
-  const links = (it.links || []).map(l =>
-    `<a href="${l.href}" target="paper">${l.label} ↗</a>`).join("");
-  el.innerHTML = `
-    <h3>${it.title} <span class="status-pill">${it.status}</span></h3>
-    <div class="body">${it.body}</div>
-    ${it.text !== null && it.text !== undefined
-      ? `<textarea class="stmt">${it.text}</textarea>` : ""}
-    <div class="links">${links}</div>
-    <div class="row choices"></div>
-    <div class="row">
-      <input class="note" placeholder="note to the pipeline (optional)"
-             value="${(it.note || "").replace(/"/g, "&quot;")}">
-      <button class="save">save note${it.text != null ? " + text" : ""}</button>
-      <span class="saved">saved ✓</span>
-    </div>`;
-  const choices = el.querySelector(".choices");
+
+  const h = document.createElement("h3");
+  h.textContent = it.title + " ";
+  const pill = document.createElement("span");
+  pill.className = "status-pill"; pill.textContent = it.status;
+  h.appendChild(pill);
+  el.appendChild(h);
+
+  const fs = document.createElement("div");
+  fs.className = "fields";
+  for (const f of it.fields || []) {
+    const d = document.createElement("div");
+    d.appendChild(helpSpan(f.label, f.help));
+    if (f.value) d.appendChild(document.createTextNode(": " + f.value));
+    fs.appendChild(d);
+  }
+  el.appendChild(fs);
+
+  let stmt = null;
+  if (it.text !== null && it.text !== undefined) {
+    stmt = document.createElement("textarea");
+    stmt.className = "stmt"; stmt.value = it.text;
+    stmt.title = it.text_help || "";
+    el.appendChild(stmt);
+  }
+
+  const anchors = document.createElement("div");
+  anchors.className = "anchors";
+  const knowlHost = document.createElement("div");
+  for (const l of it.links || []) {
+    anchors.appendChild(knowlButton(l, knowlHost));
+    const a = document.createElement("a");
+    a.href = l.href; a.target = "paper"; a.textContent = "↗";
+    a.title = "open in the full paper";
+    anchors.appendChild(a);
+  }
+  el.appendChild(anchors);
+  el.appendChild(knowlHost);
+
+  const choices = document.createElement("div");
+  choices.className = "row";
   for (const c of it.choices) {
     const b = document.createElement("button");
     b.textContent = c;
     if (c.includes("approved") || c.startsWith("known")) b.classList.add("approve");
     if (c.includes("reject")) b.classList.add("reject");
     if (c === it.status) b.classList.add("sel");
-    b.onclick = async () => {
-      await decide({ artifact: current, id: it.id, status: c });
+    const hh = (it.choice_help || {})[c];
+    if (hh) { b.onmouseenter = () => showTip(b, `<b>${esc(c)}</b>${esc(hh)}`);
+              b.onmouseleave = hideTip; }
+    b.onclick = async () => {              // autosaves immediately
+      if (!await decide({ artifact: current, id: it.id, status: c })) return;
       choices.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
       b.classList.add("sel");
-      el.querySelector(".status-pill").textContent = c;
+      pill.textContent = c;
       flash(el);
-      loadTabs();
     };
     choices.appendChild(b);
   }
-  el.querySelector(".save").onclick = async () => {
-    const payload = { artifact: current, id: it.id,
-                      note: el.querySelector(".note").value };
-    const stmt = el.querySelector(".stmt");
-    if (stmt) payload.text = stmt.value;
-    await decide(payload);
-    flash(el);
-  };
-  return el;
-}
+  const legend = qmark("<b>What the options mean</b>" +
+    it.choices.map(c => `<b>${esc(c)}</b>${esc((it.choice_help || {})[c] || "")}`)
+      .join(""));
+  choices.appendChild(legend);
+  el.appendChild(choices);
 
-async function decide(payload) {
-  const r = await fetch("/api/decide", { method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload) });
-  if (!r.ok) alert("save failed: " + (await r.text()));
-}
-function flash(el) {
-  const s = el.querySelector(".saved");
-  s.classList.add("show");
-  setTimeout(() => s.classList.remove("show"), 1200);
+  const noteRow = document.createElement("div");
+  noteRow.className = "row";
+  const note = document.createElement("input");
+  note.className = "note";
+  note.placeholder = "note to the pipeline (autosaves)";
+  note.value = it.note || "";
+  const saved = document.createElement("span");
+  saved.className = "saved"; saved.textContent = "saved ✓";
+  noteRow.appendChild(note); noteRow.appendChild(saved);
+  el.appendChild(noteRow);
+
+  const saver = autosaver(el, it, () => {
+    const p = { artifact: current, id: it.id, note: note.value };
+    if (stmt) p.text = stmt.value;
+    return p;
+  });
+  note.addEventListener("input", saver.input);
+  note.addEventListener("blur", saver.blur);
+  if (stmt) { stmt.addEventListener("input", saver.input);
+              stmt.addEventListener("blur", saver.blur); }
+  return el;
 }
 
 loadTabs().then(render);
