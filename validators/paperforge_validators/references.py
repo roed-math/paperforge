@@ -49,7 +49,7 @@ def _bib_pdf_map(bib_texts: dict[str, str], pdf_dir: Path) -> dict[str, Path]:
     pdfs = list(pdf_dir.glob("*.pdf")) if pdf_dir.exists() else []
     out = {}
     for key, text in bib_texts.items():
-        toks = {t.lower() for t in re.findall(r"[A-Z][a-z]{3,}", text)}
+        toks = {t.lower() for t in re.findall(r"[A-Za-z]{5,}", text)}
         best, score = None, 0
         for p in pdfs:
             ftoks = {t.lower() for t in re.findall(r"[A-Za-z]{4,}", p.stem)}
@@ -134,15 +134,17 @@ def check(config: dict) -> list[Finding]:
                     f"axiom {label} ({short}) has no parsed Citation: line in "
                     f"its docstring — formalization-side gap", ax["file"]))
                 continue
-            bib_keys = {aliases.get(w) for w in ax["works"]}
-            missing = [w for w in ax["works"] if not aliases.get(w)]
+            def alias_keys(w):
+                v = aliases.get(w)
+                return set(v) if isinstance(v, list) else ({v} if v else set())
+            bib_keys = set().union(*(alias_keys(w) for w in ax["works"]))
+            missing = [w for w in ax["works"] if not alias_keys(w)]
             for w in missing:
                 findings.append(Finding(
                     "references", "warning",
                     f"axiom {label} cites '{w}', which maps to no bibliography "
                     f"entry (bib-aliases.json) — the paper may be missing a "
                     f"work the formalization rests on", short))
-            bib_keys.discard(None)
             if not ax["paper_tags"]:
                 findings.append(Finding(
                     "references", "warning",

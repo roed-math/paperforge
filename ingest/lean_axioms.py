@@ -29,15 +29,18 @@ import re
 from pathlib import Path
 
 CENSUS = re.compile(r"\*\*\[Classical\s*[—–-]\s*([A-Z]\d+[′']?)")
-CITE_LINE = re.compile(r"Citation:\s*(.+?)(?:\n\n|-/|\nPaper:|$)", re.S)
+CITE_LINE = re.compile(r"Citation[^:\n]{0,40}:\s*(.+?)(?:\n\n|-/|\nPaper:|$)", re.S)
 PAPER_LINE = re.compile(r"Paper:\s*(.+?)(?:\n|-/|$)")
 PAPER_REF = re.compile(
     r"(Theorem|Thm|Lemma|Lem|Proposition|Prop|Corollary|Cor|Definition|Remark)"
-    r"\.?~? ?(\d+\.\d+|[AB]\.\d+)|§(\d+(?:\.\d+)?)|eq\.? ?\((\d+)\)", re.I)
+    r"\.?~? ?(\d+\.\d+|[AB]\.\d+)|(?<!§)§(\d+(?:\.\d+)?)|eq\.? ?\((\d+)\)", re.I)
 # Work tokens: bracketed-index style "NSW [1]" or "Labute [2]", plus bare
 # surnames/acronyms at the start of a citation clause.
-WORK = re.compile(r"\b([A-Z][A-Za-z'’\-]+(?:–[A-Z][A-Za-z'’\-]+)*)\s*\[\d+\]"
-                  r"|(?:^|;)\s*([A-Z][A-Za-z'’\-]{2,}|[A-Z]{2,4})\b[ ,]")
+# names may be separated from their [index] by a short title chunk
+# ("Serre, Local Fields [7]"), and indices may be non-numeric ([CiA]).
+WORK = re.compile(r"\b([A-Z][A-Za-z'’\-]+(?:–[A-Z][A-Za-z'’\-]+)*)"
+                  r"(?:,[^;\[\]]{0,50}?)?\s*\[\w{1,4}\]"
+                  r"|(?:^|;|\+)\s*([A-Z][A-Za-z'’\-]{2,}|[A-Z]{2,4})\b[ ,*]")
 
 
 def resolve_paper_tags(paper_refs, old_map, cur_items):
@@ -60,10 +63,17 @@ def resolve_paper_tags(paper_refs, old_map, cur_items):
             res.setdefault(("any", r["number"]), tag)
         elif r["kind"] in ("equation", "align-row"):
             eqmap[r["number"].strip("()")] = tag
+    secmap = {}
+    for tag, r in cur_items.items():
+        if r["kind"] in ("section", "appendix", "subsection"):
+            secmap[r["number"]] = tag
     for kind_raw, num, sec, eq in paper_refs:
         if eq:
             if eq in eqmap:
                 tags.append(eqmap[eq])
+        elif sec:
+            if sec in secmap:
+                tags.append(secmap[sec])
         elif num:
             kind = kindmap.get(kind_raw.lower(), "any") if kind_raw else "any"
             t = res.get((kind, num)) or res.get(("any", num))
@@ -123,11 +133,13 @@ def main() -> int:
                 doc = pending or ""
                 census = (CENSUS.search(doc) or [None, None])[1]
                 cites = [c.strip().replace("\n", " ")
-                         for c in CITE_LINE.findall(doc)]
+                         for c in CITE_LINE.findall(doc.replace("*", "").replace("`", ""))]
                 works = sorted({g1 or g2 for g1, g2 in WORK.findall(" ".join(cites))
-                                if (g1 or g2) not in ("Ch", "Thm", "Theorem",
-                                                      "Original", "Invent", "Math",
-                                                      "Prop", "See", "Paper")})
+                                if (g1 or g2) not in (
+                                    "Ch", "Chap", "Thm", "Theorem", "Original",
+                                    "Invent", "Math", "Prop", "Proposition",
+                                    "See", "Paper", "Definition", "Fields",
+                                    "Local", "Cor", "Rem", "Grundlehren")})
                 prefs = PAPER_REF.findall(" ".join(PAPER_LINE.findall(doc)))
                 out[full] = {
                     "census": census, "file": str(f.relative_to(args.lean_root)),

@@ -1013,6 +1013,19 @@ def apply_insertions(secs) -> int:
                         j = i + len(close)
                         text = text[:j] + "\n" + body + text[j:]
                         n += 1
+                elif pos == "prepend":
+                    # inside the anchor element, right after its <title> (or
+                    # after the opening tag when there is no title)
+                    import re as _re
+                    mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker) + r"[^>]*>",
+                                    text)
+                    if not mm:
+                        continue
+                    tclose = text.find("</title>", mm.end())
+                    near = tclose >= 0 and tclose - mm.end() < 300
+                    j = (tclose + len("</title>")) if near else mm.end()
+                    text = text[:j] + "\n" + body + text[j:]
+                    n += 1
                 else:  # append (inside, at end)
                     import re as _re
                     mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker), text)
