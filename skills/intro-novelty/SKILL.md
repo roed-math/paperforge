@@ -27,13 +27,14 @@ therefore does NOT invent novelty statements: it renders the **dossier**.
 
 ## Rendering rules (statements are markup, not raw material)
 
-- Claim statements arrive as render-ready claim markup (docs/NOVELTY.md):
-  transfer them near-verbatim. Convert `[@bib-KEY]` -> `[<xref
-  ref="bib-KEY"/>]` and `[@bib-KEY, pin]` -> `[<xref ref="bib-KEY"/>, pin]`;
-  everything else (`<m>`, `<c>`, `<em>`, `<ndash/>`) is already PreTeXt.
-- Before rendering a claim with `new_refs`, append those entries to
-  `references/extra-biblio.xml` (they were deliberately withheld until
-  approval). Every `[@key]` must resolve afterward — the references
+- Claim statements arrive as inline LaTeX (docs/NOVELTY.md). Convert each
+  deterministically:  `python3 <paperforge>/ingest/claim_inline.py` (stdin
+  LaTeX -> stdout PreTeXt inline; it reuses tex2ptx.convert_inline, so
+  \cite becomes the same `[<xref ref="bib-KEY"/>, pin]` form as the paper's
+  own citations). Do NOT hand-translate or paraphrase.
+- Before rendering a claim with `new_refs`, materialize those entries into
+  `references/extra-biblio.xml` via `claim_inline.py --biblio '<latex>'
+  --key bib-KEY`. Every \cite key must resolve afterward — the references
   validator's dangling-cite check is the gate.
 
 ## Writing rules

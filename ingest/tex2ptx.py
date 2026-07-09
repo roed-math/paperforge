@@ -339,7 +339,8 @@ def convert_inline(s: str, refs: "RefMap") -> str:
         m = re.match(r"\\texttt\{", s[i:])
         if m:
             j = match_brace(s, i + m.end() - 1)
-            out.append("<c>" + convert_inline(s[i + m.end():j], refs) + "</c>")
+            inner = s[i + m.end():j].replace(r"\_", "_")
+            out.append("<c>" + convert_inline(inner, refs) + "</c>")
             i = j + 1
             continue
         m = re.match(r"\\texorpdfstring\{", s[i:])

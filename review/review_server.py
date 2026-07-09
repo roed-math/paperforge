@@ -188,11 +188,12 @@ class Novelty:
             out.append(dict(
                 id=cid, title=cid, fields=fields,
                 text=c["statement"],
-                text_help="The claim itself, in render-ready markup: "
-                          "<m>...</m> for math (the paper's macros work), "
-                          "[@bib-KEY] for citations (exact bibliography "
-                          "keys — see the picker). The approved text is "
-                          "assembled near-verbatim into the introduction.",
+                text_help="The claim itself, in inline LaTeX: $...$ math "
+                          "(the paper's macros work), \\cite[pin]{KEY} "
+                          "citations by exact bibliography key (see the "
+                          "picker), \\emph, \\texttt, --/--- dashes. "
+                          "Rendered into the introduction through the same "
+                          "LaTeX->PreTeXt converter as the paper itself.",
                 links=links_for(c.get("paper_anchors")),
                 status=c["status"], choices=self.choices,
                 choice_help=self.choice_help,

@@ -50,20 +50,23 @@ turned out lighter than expected), never to decide alone what is surprising.
    `paper_anchors` (tags), `confidence`, `status:
    proposed | author-approved | author-rejected | needs-discussion`.
 
-   **Statements are render-ready claim markup**, not informal prose: `<m>…</m>`
-   for math (the paper's macros are available), `[@bib-KEY]` or
-   `[@bib-KEY, pin]` for citations by exact bibliography key (this is what
-   disambiguates e.g. the two Serre entries), `<c>`, `<em>`, `<ndash/>`.
-   What the author approves is what gets typeset — the render step performs
-   no linguistic conversion. The review dashboard shows a live typeset
-   preview with citation chips (hover = the full bibliography entry; unknown
-   keys are flagged red) and an insert-citation picker.
+   **Statements are inline LaTeX** — the dialect mathematicians write:
+   `$…$` math (the paper's macros are available), `\cite{KEY}` /
+   `\cite[pin]{KEY}` citations by exact bibliography key (this is what
+   disambiguates e.g. the two Serre entries), `\emph`, `\texttt`,
+   `--`/`---`. The render step converts deterministically through
+   `ingest/claim_inline.py`, which reuses `tex2ptx.convert_inline` — the
+   SAME converter that ingests the whole paper — so claim rendering can
+   never diverge from paper rendering, and no LLM post-processing sits
+   between approval and typesetting. The review dashboard shows a live
+   typeset preview with citation chips (hover = the full bibliography
+   entry; unknown keys flagged red) and an insert-citation picker.
 
    A claim that cites a work not yet in the bibliography carries it in
-   `new_refs: {key: <biblio entry markup>}`. These entries materialize into
-   `references/extra-biblio.xml` only when the claim is approved and
-   rendered — so the no-uncited-entries gate stays green while the claim is
-   pending.
+   `new_refs: {key: <entry in LaTeX>}`. These entries materialize into
+   `references/extra-biblio.xml` (via `claim_inline.py --biblio`) only when
+   the claim is approved and rendered — so the no-uncited-entries gate
+   stays green while the claim is pending.
 4. **Author review** — the gate. Novelty claims are never auto-published.
 5. **Prose** (intro-novelty skill): writes the introduction's novelty
    paragraphs from approved claims only, citing the works named in the

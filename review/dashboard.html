@@ -284,7 +284,7 @@ function card(it) {
     const lab = document.createElement("label");
     lab.textContent = "insert citation:";
     const sel = document.createElement("select");
-    sel.innerHTML = "<option value=''>[@…]</option>";
+    sel.innerHTML = "<option value=''>\\cite{…}</option>";
     ensureBib().then(bib => {
       for (const k of Object.keys(bib).sort())
         sel.insertAdjacentHTML("beforeend",
@@ -293,32 +293,39 @@ function card(it) {
     sel.onchange = () => {
       if (!sel.value) return;
       const pos = stmt.selectionStart ?? stmt.value.length;
-      stmt.value = stmt.value.slice(0, pos) + `[@${sel.value}]`
+      const key = sel.value.replace(/^bib-/, "");
+      stmt.value = stmt.value.slice(0, pos) + `\\cite{${key}}`
                  + stmt.value.slice(pos);
       sel.value = "";
       stmt.dispatchEvent(new Event("input", { bubbles: true }));
     };
     pick.appendChild(lab); pick.appendChild(sel);
-    pick.appendChild(qmark("<b>Claim markup</b>" +
-      esc("<m>…</m> math (paper macros work) · [@bib-KEY] or " +
-          "[@bib-KEY, pin] citations · <c>code</c> · <em>emph</em> · " +
-          "<ndash/>/<mdash/>. The approved text is assembled near-verbatim " +
-          "into the introduction; [@…] becomes a real <xref>.")));
+    pick.appendChild(qmark("<b>Statement LaTeX</b>" +
+      esc("$…$ math (the paper's macros work) · \\cite{KEY} or " +
+          "\\cite[pin]{KEY} citations · \\emph{…} · \\texttt{…} · " +
+          "-- and --- dashes. Rendered to the introduction through the " +
+          "same converter as the paper itself (\\cite becomes a real " +
+          "cross-reference).")));
     el.appendChild(pick);
 
     let pt = null;
     const renderPreview = async () => {
       const bib = await ensureBib();
       let h = esc(stmt.value);
-      h = h.replace(/&lt;m&gt;/g, "\\(").replace(/&lt;\/m&gt;/g, "\\)");
-      h = h.replace(/&lt;c&gt;(.*?)&lt;\/c&gt;/g, "<code>$1</code>");
-      h = h.replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/g, "<em>$1</em>");
-      h = h.replace(/&lt;ndash\/&gt;/g, "–").replace(/&lt;mdash\/&gt;/g, "—");
-      h = h.replace(/\[@(bib-[\w-]+)(\s*,[^\]\n]{0,80})?\]/g, (m0, key, pin) => {
-        const known = key in bib;
-        const label = key.replace(/^bib-/, "") + (pin || "");
-        return `<span class="cite ${known ? "" : "unknown"}" data-k="${key}">[${label}]</span>`;
-      });
+      // \cite[pin]{K1,K2} -> chips (mirror of tex2ptx.convert_inline)
+      h = h.replace(/\\cite(?:\[([^\]]*)\])?\{([^}]*)\}/g, (m0, pin, keys) =>
+        keys.split(",").map(k => {
+          const key = "bib-" + k.trim();
+          const known = key in bib;
+          const label = k.trim() + (pin ? ", " + pin : "");
+          return `<span class="cite ${known ? "" : "unknown"}" data-k="${key}">[${label}]</span>`;
+        }).join(", "));
+      h = h.replace(/\$([^$]+)\$/g, "\\($1\\)");
+      h = h.replace(/\\emph\{([^}]*)\}/g, "<em>$1</em>")
+           .replace(/\\textit\{([^}]*)\}/g, "<em>$1</em>");
+      h = h.replace(/\\texttt\{([^}]*)\}/g,
+                    (m0, c) => "<code>" + c.replace(/\\_/g, "_") + "</code>");
+      h = h.replace(/---/g, "—").replace(/--/g, "–").replace(/~/g, " ");
       preview.innerHTML = h;
       preview.querySelectorAll(".cite").forEach(c => {
         const k = c.dataset.k;
