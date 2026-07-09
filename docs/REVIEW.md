@@ -14,7 +14,7 @@ and a bad one for the author. Two review surfaces exist:
 One tab per artifact, one card per decision: the statement (editable where
 the artifact carries prose, e.g. novelty claims), the evidence bullets, the
 current status, one-click status buttons, and a free-text **note to the
-pipeline** persisted into the artifact (`author_note`). Crucially,每 card
+pipeline** persisted into the artifact (`author_note`). Crucially, each card
 links its paper anchors into the *built paper* (`/paper/...` serves
 `output/web/`), so the anchored theorem — with notation hovers and lean
 badges — is one click away while judging.
