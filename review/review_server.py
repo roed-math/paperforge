@@ -78,6 +78,36 @@ def extract_fragment(tag: str) -> str | None:
     return lxml.html.tostring(el, encoding="unicode")
 
 
+def collect_bib() -> dict:
+    """bib key -> entry text: converted bibliography + extra-biblio +
+    new_refs proposed by pending novelty claims."""
+    out = {}
+    main = ROOT / "source" / "main.ptx"
+    if main.exists():
+        import re as _re
+        for m in _re.finditer(
+                r'<biblio[^>]*xml:id="(bib-[^"]+)"[^>]*>(.*?)</biblio>',
+                main.read_text(), _re.S):
+            out[m.group(1)] = _re.sub(r"<[^>]+>", "",
+                                      " ".join(m.group(2).split()))
+    extra = ROOT / "references" / "extra-biblio.xml"
+    if extra.exists():
+        import re as _re
+        for m in _re.finditer(
+                r'<biblio[^>]*xml:id="(bib-[^"]+)"[^>]*>(.*?)</biblio>',
+                extra.read_text(), _re.S):
+            out.setdefault(m.group(1), _re.sub(r"<[^>]+>", "",
+                                               " ".join(m.group(2).split())))
+    claims = ROOT / "novelty" / "claims.json"
+    if claims.exists():
+        import re as _re
+        for c in json.load(open(claims))["claims"].values():
+            for k, v in (c.get("new_refs") or {}).items():
+                out.setdefault(k, _re.sub(r"<[^>]+>", "", v)
+                               + "  [NEW — materializes on approval]")
+    return out
+
+
 def extract_macros() -> str:
     """The paper's \\newcommand block (div#latex-macros inner HTML)."""
     web = ROOT / "output" / "web"
@@ -142,6 +172,14 @@ class Novelty:
                     label="hedge", value=c["hedge"],
                     help="The strongest phrasing the evidence supports. "
                          "Rendered prose must not exceed this hedge."))
+            if c.get("new_refs"):
+                fields.append(dict(
+                    label="new references",
+                    value=", ".join(c["new_refs"]),
+                    help="Bibliography entries this claim introduces. They "
+                         "are added to references/extra-biblio.xml only when "
+                         "the claim is approved and rendered — so the "
+                         "no-uncited-entries gate stays green meanwhile."))
             if c.get("machine_checkable"):
                 fields.append(dict(
                     label="machine-checkable", value="yes",
@@ -150,8 +188,11 @@ class Novelty:
             out.append(dict(
                 id=cid, title=cid, fields=fields,
                 text=c["statement"],
-                text_help="The claim itself. Edit freely — the approved text "
-                          "is exactly what the intro pass renders from.",
+                text_help="The claim itself, in render-ready markup: "
+                          "<m>...</m> for math (the paper's macros work), "
+                          "[@bib-KEY] for citations (exact bibliography "
+                          "keys — see the picker). The approved text is "
+                          "assembled near-verbatim into the introduction.",
                 links=links_for(c.get("paper_anchors")),
                 status=c["status"], choices=self.choices,
                 choice_help=self.choice_help,
@@ -382,6 +423,8 @@ class Handler(SimpleHTTPRequestHandler):
             if a:
                 return self._json(a.items())
             return self._json({"error": "unknown artifact"}, 400)
+        if url.path == "/api/bib":
+            return self._json(collect_bib())
         if url.path == "/api/macros":
             return self._json({"html": extract_macros()})
         if url.path == "/api/fragment":

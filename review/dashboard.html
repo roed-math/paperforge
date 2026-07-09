@@ -65,6 +65,17 @@ main { max-width:62rem; margin:0 auto; padding:1rem 1.2rem 4rem; }
   margin:.15rem .3rem 0 0; border:1px solid rgba(25,100,60,.4);
   border-radius:999px; background:rgba(40,160,90,.08);
   text-decoration:none; color:inherit }
+.preview { margin:.45rem 0 0; padding:.5rem .65rem; border:1px dashed var(--line);
+  border-radius:6px; background:var(--bg); font-size:.9rem; min-height:1.4rem }
+.preview .cite { display:inline-block; border:1px solid var(--line);
+  border-radius:4px; padding:0 .3rem; font-size:.8rem; color:var(--acc);
+  cursor:help; background:var(--card) }
+.preview .cite.unknown { color:var(--bad); border-color:var(--bad) }
+.pickrow { display:flex; gap:.4rem; align-items:center; margin-top:.3rem }
+.pickrow select { font:inherit; font-size:.8rem; background:var(--bg);
+  color:var(--fg); border:1px solid var(--line); border-radius:6px;
+  padding:.2rem .4rem; max-width:16rem }
+.pickrow label { font-size:.78rem; color:var(--muted) }
 .note { flex:1; min-width:12rem; padding:.3rem .5rem; font:inherit;
   font-size:.84rem; border:1px solid var(--line); border-radius:6px;
   background:var(--bg); color:var(--fg); }
@@ -101,7 +112,29 @@ main { max-width:62rem; margin:0 auto; padding:1rem 1.2rem 4rem; }
 <div id="tooltip"></div>
 <script>
 "use strict";
-let current = null, arts = [], macrosHtml = null;
+let current = null, arts = [], macrosHtml = null, BIB = null;
+
+/* MathJax loads async; previews render before it is ready. Wait, then
+   typeset — every math consumer goes through this. */
+function mjReady() {
+  return new Promise(res => {
+    (function poll(n) {
+      if (window.MathJax && MathJax.startup && MathJax.startup.promise)
+        MathJax.startup.promise.then(res);
+      else if (n < 200) setTimeout(() => poll(n + 1), 60);
+      else res();
+    })(0);
+  });
+}
+async function typeset(el) {
+  await mjReady();
+  if (window.MathJax && MathJax.typesetPromise)
+    await MathJax.typesetPromise([el]).catch(() => {});
+}
+async function ensureBib() {
+  if (BIB === null) BIB = await (await fetch("/api/bib")).json();
+  return BIB;
+}
 
 /* ---------------- tooltip (question-mark hovertext) ---------------- */
 const tip = document.getElementById("tooltip");
@@ -114,7 +147,8 @@ function showTip(el, html) {
   tip.classList.add("show");
 }
 function hideTip() { tip.classList.remove("show"); }
-function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+function esc(s) { return (s || "").replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function helpSpan(text, help) {
   const s = document.createElement("span");
   s.className = "help"; s.textContent = text;
@@ -189,8 +223,7 @@ async function ensureMacros(panel) {
     d.innerHTML = macrosHtml;
     d.style.display = "none";
     document.body.prepend(d);
-    if (window.MathJax && MathJax.typesetPromise)
-      await MathJax.typesetPromise([d]).catch(() => {});
+    await typeset(d);
   }
 }
 function knowlButton(link, host) {
@@ -208,8 +241,7 @@ function knowlButton(link, host) {
     if (!r.ok) { panel.textContent = "no preview — open in paper ↗"; return; }
     await ensureMacros(panel);
     panel.innerHTML = (await r.json()).html;
-    if (window.MathJax && MathJax.typesetPromise)
-      MathJax.typesetPromise([panel]).catch(() => {});
+    typeset(panel);
   };
   return b;
 }
@@ -236,12 +268,71 @@ function card(it) {
   }
   el.appendChild(fs);
 
-  let stmt = null;
+  let stmt = null, preview = null;
   if (it.text !== null && it.text !== undefined) {
     stmt = document.createElement("textarea");
     stmt.className = "stmt"; stmt.value = it.text;
     stmt.title = it.text_help || "";
     el.appendChild(stmt);
+
+    preview = document.createElement("div");
+    preview.className = "preview";
+    el.appendChild(preview);
+
+    const pick = document.createElement("div");
+    pick.className = "pickrow";
+    const lab = document.createElement("label");
+    lab.textContent = "insert citation:";
+    const sel = document.createElement("select");
+    sel.innerHTML = "<option value=''>[@…]</option>";
+    ensureBib().then(bib => {
+      for (const k of Object.keys(bib).sort())
+        sel.insertAdjacentHTML("beforeend",
+          `<option value="${k}">${k}</option>`);
+    });
+    sel.onchange = () => {
+      if (!sel.value) return;
+      const pos = stmt.selectionStart ?? stmt.value.length;
+      stmt.value = stmt.value.slice(0, pos) + `[@${sel.value}]`
+                 + stmt.value.slice(pos);
+      sel.value = "";
+      stmt.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    pick.appendChild(lab); pick.appendChild(sel);
+    pick.appendChild(qmark("<b>Claim markup</b>" +
+      esc("<m>…</m> math (paper macros work) · [@bib-KEY] or " +
+          "[@bib-KEY, pin] citations · <c>code</c> · <em>emph</em> · " +
+          "<ndash/>/<mdash/>. The approved text is assembled near-verbatim " +
+          "into the introduction; [@…] becomes a real <xref>.")));
+    el.appendChild(pick);
+
+    let pt = null;
+    const renderPreview = async () => {
+      const bib = await ensureBib();
+      let h = esc(stmt.value);
+      h = h.replace(/&lt;m&gt;/g, "\\(").replace(/&lt;\/m&gt;/g, "\\)");
+      h = h.replace(/&lt;c&gt;(.*?)&lt;\/c&gt;/g, "<code>$1</code>");
+      h = h.replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/g, "<em>$1</em>");
+      h = h.replace(/&lt;ndash\/&gt;/g, "–").replace(/&lt;mdash\/&gt;/g, "—");
+      h = h.replace(/\[@(bib-[\w-]+)(\s*,[^\]\n]{0,80})?\]/g, (m0, key, pin) => {
+        const known = key in bib;
+        const label = key.replace(/^bib-/, "") + (pin || "");
+        return `<span class="cite ${known ? "" : "unknown"}" data-k="${key}">[${label}]</span>`;
+      });
+      preview.innerHTML = h;
+      preview.querySelectorAll(".cite").forEach(c => {
+        const k = c.dataset.k;
+        c.onmouseenter = () => showTip(c, `<b>${esc(k)}</b>` +
+          esc(bib[k] || "no such bibliography entry — fix the key or add a new_refs entry"));
+        c.onmouseleave = hideTip;
+      });
+      await ensureMacros(preview);
+      await typeset(preview);
+    };
+    stmt.addEventListener("input", () => {
+      clearTimeout(pt); pt = setTimeout(renderPreview, 500);
+    });
+    renderPreview();
   }
 
   const anchors = document.createElement("div");

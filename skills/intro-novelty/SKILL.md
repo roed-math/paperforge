@@ -25,6 +25,17 @@ therefore does NOT invent novelty statements: it renders the **dossier**.
    `author-approved` / `author-rejected`, edits statements, adds context.
 4. THIS skill writes prose from `author-approved` claims only.
 
+## Rendering rules (statements are markup, not raw material)
+
+- Claim statements arrive as render-ready claim markup (docs/NOVELTY.md):
+  transfer them near-verbatim. Convert `[@bib-KEY]` -> `[<xref
+  ref="bib-KEY"/>]` and `[@bib-KEY, pin]` -> `[<xref ref="bib-KEY"/>, pin]`;
+  everything else (`<m>`, `<c>`, `<em>`, `<ndash/>`) is already PreTeXt.
+- Before rendering a claim with `new_refs`, append those entries to
+  `references/extra-biblio.xml` (they were deliberately withheld until
+  approval). Every `[@key]` must resolve afterward — the references
+  validator's dangling-cite check is the gate.
+
 ## Writing rules
 
 - One paragraph group per theme, not per claim; merge claims that tell one
