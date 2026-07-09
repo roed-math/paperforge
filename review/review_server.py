@@ -460,6 +460,14 @@ class Handler(SimpleHTTPRequestHandler):
             if a:
                 return self._json(a.items())
             return self._json({"error": "unknown artifact"}, 400)
+        if url.path == "/api/tags":
+            out = {}
+            for tag, r in _items().items():
+                rec = {"tag": tag, "kind": r["kind"], "number": r["number"]}
+                out[tag] = rec
+                if r.get("label"):
+                    out[r["label"]] = rec
+            return self._json(out)
         if url.path == "/api/bib":
             return self._json(collect_bib())
         if url.path == "/api/macros":

@@ -31,9 +31,20 @@ def load_tex2ptx():
     return mod
 
 
-def convert(latex: str) -> str:
+def load_labels(numbering: Path | None) -> set[str]:
+    r"""Real labels from the instance's numbering database, so \cref in a
+    claim validates against the paper (unknown labels warn on stderr)."""
+    import json
+    path = numbering or Path.cwd() / "crosswalk" / "numbering-current.json"
+    if not path.exists():
+        return set()
+    items = json.load(open(path))["items"]
+    return {r["label"] for r in items.values() if r.get("label")}
+
+
+def convert(latex: str, numbering: Path | None = None) -> str:
     t2p = load_tex2ptx()
-    refs = t2p.RefMap(set())        # claims use \cite, not \cref
+    refs = t2p.RefMap(load_labels(numbering))
     return t2p.convert_inline(latex.strip(), refs)
 
 
@@ -42,13 +53,15 @@ def main() -> int:
     ap.add_argument("--biblio", help="convert a bibliography entry instead of "
                                      "reading statement LaTeX from stdin")
     ap.add_argument("--key", help="xml:id for --biblio output")
+    ap.add_argument("--numbering", type=Path,
+                    help="numbering-current.json (default: ./crosswalk/...)")
     args = ap.parse_args()
     if args.biblio:
-        inner = convert(args.biblio)
+        inner = convert(args.biblio, args.numbering)
         key = args.key or "bib-FIXME"
         print(f'<biblio type="raw" xml:id="{key}">\n  {inner}\n  </biblio>')
     else:
-        print(convert(sys.stdin.read()))
+        print(convert(sys.stdin.read(), args.numbering))
     return 0
 
 

@@ -76,6 +76,9 @@ main { max-width:62rem; margin:0 auto; padding:1rem 1.2rem 4rem; }
   color:var(--fg); border:1px solid var(--line); border-radius:6px;
   padding:.2rem .4rem; max-width:34rem }
 .preview .cite.haspdf { text-decoration:underline dotted }
+.preview .xrf { color:var(--acc); cursor:pointer;
+  border-bottom:1px dotted var(--acc) }
+.preview .xrf.unknown { color:var(--bad); border-color:var(--bad) }
 .pickrow label { font-size:.78rem; color:var(--muted) }
 .note { flex:1; min-width:12rem; padding:.3rem .5rem; font:inherit;
   font-size:.84rem; border:1px solid var(--line); border-radius:6px;
@@ -135,6 +138,19 @@ async function typeset(el) {
 async function ensureBib() {
   if (BIB === null) BIB = await (await fetch("/api/bib")).json();
   return BIB;
+}
+let TAGS = null;
+async function ensureTags() {
+  if (TAGS === null) TAGS = await (await fetch("/api/tags")).json();
+  return TAGS;
+}
+function refDisplay(rec) {
+  const kindNames = { theorem:"Theorem", proposition:"Proposition",
+    lemma:"Lemma", corollary:"Corollary", definition:"Definition",
+    remark:"Remark", claim:"Claim", section:"Section", subsection:"Section",
+    appendix:"Appendix", equation:"eq.", "align-row":"eq." };
+  const k = kindNames[rec.kind] || rec.kind;
+  return k === "eq." ? `eq. ${rec.number}` : `${k} ${rec.number}`;
 }
 
 /* ---------------- tooltip (question-mark hovertext) ---------------- */
@@ -227,23 +243,27 @@ async function ensureMacros(panel) {
     await typeset(d);
   }
 }
+const openPanels = new Map();   // marker element -> its open knowl panel
+async function toggleKnowl(tag, host, marker) {
+  const prev = openPanels.get(marker);
+  if (prev) { prev.remove(); openPanels.delete(marker);
+              marker.classList.remove("open"); return; }
+  marker.classList.add("open");
+  const panel = document.createElement("div");
+  panel.className = "knowl";
+  panel.textContent = "loading…";
+  host.appendChild(panel);
+  openPanels.set(marker, panel);
+  const r = await fetch(`/api/fragment?tag=${encodeURIComponent(tag)}`);
+  if (!r.ok) { panel.textContent = "no preview — open in paper ↗"; return; }
+  await ensureMacros(panel);
+  panel.innerHTML = (await r.json()).html;
+  typeset(panel);
+}
 function knowlButton(link, host) {
   const b = document.createElement("button");
   b.className = "kn"; b.textContent = link.label;
-  let panel = null;
-  b.onclick = async () => {
-    if (panel) { panel.remove(); panel = null; b.classList.remove("open"); return; }
-    b.classList.add("open");
-    panel = document.createElement("div");
-    panel.className = "knowl";
-    panel.textContent = "loading…";
-    host.appendChild(panel);
-    const r = await fetch(`/api/fragment?tag=${encodeURIComponent(link.tag)}`);
-    if (!r.ok) { panel.textContent = "no preview — open in paper ↗"; return; }
-    await ensureMacros(panel);
-    panel.innerHTML = (await r.json()).html;
-    typeset(panel);
-  };
+  b.onclick = () => toggleKnowl(link.tag, host, b);
   return b;
 }
 
@@ -312,7 +332,14 @@ function card(it) {
     let pt = null;
     const renderPreview = async () => {
       const bib = await ensureBib();
+      const tags = await ensureTags();
       let h = esc(stmt.value);
+      // \cref{label} / \ref / \eqref -> resolved internal-reference chips
+      h = h.replace(/\\(?:[cC]ref|ref|eqref)\{([^}]*)\}/g, (m0, label) => {
+        const rec = tags[label.trim()];
+        if (!rec) return `<span class="xrf unknown" data-t="">${label}??</span>`;
+        return `<span class="xrf" data-t="${rec.tag}">${refDisplay(rec)}</span>`;
+      });
       // \cite[pin]{K1,K2} -> chips (mirror of tex2ptx.convert_inline)
       h = h.replace(/\\cite(?:\[([^\]]*)\])?\{([^}]*)\}/g, (m0, pin, keys) =>
         keys.split(",").map(k => {
@@ -328,6 +355,14 @@ function card(it) {
                     (m0, c) => "<code>" + c.replace(/\\_/g, "_") + "</code>");
       h = h.replace(/---/g, "—").replace(/--/g, "–").replace(/~/g, " ");
       preview.innerHTML = h;
+      preview.querySelectorAll(".xrf").forEach(x => {
+        const tg = x.dataset.t;
+        x.onmouseenter = () => showTip(x, tg
+          ? `<b>${esc(tg)}</b>internal reference (resolved from the crosswalk; renders as a live cross-reference in the paper). Click for the statement.`
+          : "unknown label — not in the paper's numbering database");
+        x.onmouseleave = hideTip;
+        if (tg) x.onclick = () => toggleKnowl(tg, knowlHost, x);
+      });
       preview.querySelectorAll(".cite").forEach(c => {
         const k = c.dataset.k, e = bib[k];
         if (e && e.pdf) c.classList.add("haspdf");
