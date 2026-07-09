@@ -23,6 +23,31 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path.cwd()
 HERE = Path(__file__).resolve().parent
+MATHJAX_LOCAL = ROOT / "vendor" / "node_modules" / "mathjax"
+MATHJAX_CDN = "https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"
+
+
+MJX_FONT_LOCAL = ROOT / "vendor" / "node_modules" / "@mathjax"
+FONTPATH_PATCH = (
+    '<script>window.MathJax = window.MathJax || {};'
+    'window.MathJax.output = Object.assign({}, window.MathJax.output,'
+    ' {fontPath: "/mjx-font/%%FONT%%-font"});</script>')
+
+
+def localize_cdn(html: str) -> str:
+    """Point CDN assets at local copies when vendored (fetch-vendor.sh)."""
+    if MATHJAX_LOCAL.exists():
+        html = html.replace(MATHJAX_CDN, "/mathjax/tex-mml-chtml.js")
+        html = html.replace(
+            "https://cdn.jsdelivr.net/npm/mathjax@4", "/mathjax")
+        if MJX_FONT_LOCAL.exists():
+            # the math font is a separate npm package the bundle fetches at
+            # runtime; point it at the vendored copy via output.fontPath
+            # (attribute order varies: <script defer src=...>)
+            html = re.sub(
+                r'(<script[^>]*src="/mathjax/tex-mml-chtml\.js")',
+                FONTPATH_PATCH + r"\1", html, count=1)
+    return html
 
 
 # ---------------------------------------------------------------- anchors
@@ -454,7 +479,8 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         url = urlparse(self.path)
         if url.path in ("/", "/review"):
-            html = (HERE / "dashboard.html").read_bytes()
+            html = localize_cdn(
+                (HERE / "dashboard.html").read_text()).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(html)))
@@ -530,13 +556,39 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if url.path.startswith("/mjx-font/") and MJX_FONT_LOCAL.exists():
+            rest = self.path[len("/mjx-font/"):]
+            # the bundle appends @version to the package segment; the
+            # vendored directory has no version suffix
+            rest = re.sub(r"^([^/]+?)@[^/]+", r"\1", rest)
+            self.path = "/vendor/node_modules/@mathjax/" + rest
+            return super().do_GET()
+        if url.path.startswith("/mathjax/") and MATHJAX_LOCAL.exists():
+            rest = self.path[len("/mathjax/"):]
+            target = MATHJAX_LOCAL / rest
+            if rest.endswith(".js") and MJX_FONT_LOCAL.exists() \
+                    and target.exists():
+                # rewrite the bundle's default CDN font base to the local
+                # mount (PreTeXt configures MathJax via a startup module, so
+                # an inline config patch cannot override it there)
+                body = target.read_text(errors="ignore").replace(
+                    "https://cdn.jsdelivr.net/npm/@mathjax",
+                    "/mjx-font").encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/javascript")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            self.path = "/vendor/node_modules/mathjax/" + rest
+            return super().do_GET()
         if url.path.startswith("/paper/"):
             rel = url.path[len("/paper/"):] or "index.html"
             target = ROOT / "output" / "web" / rel
             if target.suffix == ".html" and target.exists():
                 # review mode: inject the tag-discovery layer (the standalone
                 # build in output/web is untouched)
-                html = target.read_text(errors="ignore").replace(
+                html = localize_cdn(target.read_text(errors="ignore")).replace(
                     "</body>",
                     '<script src="/review-paper-tags.js"></script>'
                     '<script src="/review-paper-margin.js"></script></body>', 1)

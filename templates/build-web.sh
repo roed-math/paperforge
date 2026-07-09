@@ -25,5 +25,6 @@ python3 $PF/ingest/notation_far.py .
 pretext build web
 python3 $PF/ingest/notation_registry.py .
 cat web-assets/notation-registry.js web-assets/detail-ui.js > output/web/detail-ui.js
-cp web-assets/detail-ui.css web-assets/paper-style.css output/web/
+cp web-assets/detail-ui.css web-assets/paper-style.css web-assets/fonts-cm.css output/web/
+cp -R web-assets/fonts output/web/fonts
 echo "build-web complete"

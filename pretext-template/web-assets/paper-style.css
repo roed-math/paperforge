@@ -4,7 +4,7 @@
 
 /* -- 6. Computer Modern webfonts (the LaTeX look). Math is already Modern
       via MathJax; this aligns the prose. -- */
-@import url("https://cdn.jsdelivr.net/gh/aaaakshat/cm-web-fonts@latest/fonts.css");
+@import url("fonts-cm.css");   /* vendored locally, CDN-free */
 
 :root:not(.dark-mode) {
   /* -- 5. black and white: the theme derives nearly everything from these -- */
