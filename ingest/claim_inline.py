@@ -39,7 +39,8 @@ def load_labels(numbering: Path | None) -> set[str]:
     if not path.exists():
         return set()
     items = json.load(open(path))["items"]
-    return {r["label"] for r in items.values() if r.get("label")}
+    labels = {r["label"] for r in items.values() if r.get("label")}
+    return labels | set(items)     # bare tags are valid \cref targets too
 
 
 def convert(latex: str, numbering: Path | None = None) -> str:

@@ -479,8 +479,31 @@ class Handler(SimpleHTTPRequestHandler):
             if frag is None:
                 return self._json({"error": f"no fragment for {tag}"}, 404)
             return self._json({"html": frag})
+        if url.path == "/review-paper-tags.js":
+            body = (HERE / "paper-tags.js").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if url.path.startswith("/paper/"):
-            self.path = "/output/web/" + self.path[len("/paper/"):]
+            rel = url.path[len("/paper/"):] or "index.html"
+            target = ROOT / "output" / "web" / rel
+            if target.suffix == ".html" and target.exists():
+                # review mode: inject the tag-discovery layer (the standalone
+                # build in output/web is untouched)
+                html = target.read_text(errors="ignore").replace(
+                    "</body>",
+                    '<script src="/review-paper-tags.js"></script></body>', 1)
+                body = html.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            self.path = "/output/web/" + rel
         return super().do_GET()
 
     def do_POST(self):

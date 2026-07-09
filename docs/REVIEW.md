@@ -32,6 +32,15 @@ artifact (`author_note`).
   preview hover to the full bibliography entry and — when a local copy is
   matched in `references/` (author-surname-gated filename matching) — click
   through to the PDF itself.
+- **The paper is one hop away, with tag discovery**: the header's "open the
+  paper ↗" opens the built HTML, and pages served through the review server
+  get an injected tag-discovery layer — hover any tagged statement, section,
+  or equation to reveal its `\cref{label}` badge; click to copy it to the
+  clipboard, ready for a claim statement or directive. Internal references
+  in claim previews render as live "Theorem 1.2"-style chips (numbers
+  resolved from the crosswalk at view time) that open the referenced
+  statement as an inline knowl. The standalone `output/web` build is
+  untouched — the injection is review-mode only.
 
 Decisions write back into the native artifact files immediately; there is no
 second source of truth, no export step, and `git diff` shows exactly what the
