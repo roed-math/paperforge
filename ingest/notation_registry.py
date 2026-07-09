@@ -24,17 +24,28 @@ import tomllib
 from pathlib import Path
 
 
-def resolve_href(target: str, items: dict) -> str | None:
+def resolve_href(target: str, items: dict, web: Path | None = None) -> str | None:
     rec = items.get(target)
     if rec is None:
         return None
+
+    def page_or_index(page, frag=""):
+        if web is not None and not (web / page).exists():
+            singles = [f.name for f in web.glob("*.html")
+                       if f.name != "index.html"]
+            if len(singles) == 1:          # chunk-0 build: one document page
+                page = singles[0]
+            elif (web / "index.html").exists():
+                page = "index.html"
+        return page + frag
+
     if rec["kind"] in ("section", "appendix"):
-        return f"{target}.html"
+        return page_or_index(f"{target}.html")
     # find the division (section/appendix) whose number matches this item's
     sec_no = rec.get("section")
     for tag, r in items.items():
         if r["kind"] in ("section", "appendix") and r["number"] == sec_no:
-            return f"{tag}.html#{target}"
+            return page_or_index(f"{tag}.html", f"#{target}")
     return None
 
 
@@ -62,7 +73,8 @@ def main() -> int:
 
     for key, rec in flat(entries):
         target = rec.get("href") or rec.get("defsite")
-        href = resolve_href(target, items) if target else None
+        href = (resolve_href(target, items, root / "output" / "web")
+                if target else None)
         registry[key] = {"html": rec["definition"], "href": href}
 
     out = root / "web-assets" / "notation-registry.js"

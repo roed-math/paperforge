@@ -6,6 +6,8 @@
     </source>
 
     <common>
+        <!-- paper look: the whole document on one page (no per-section pages) -->
+        <chunking level="0"/>
         <!--<journal name="ams" /> -->
     </common>
 

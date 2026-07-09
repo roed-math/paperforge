@@ -36,18 +36,29 @@ def _items():
 
 
 def tag_page(tag: str) -> str | None:
-    """Which output/web page contains this tag."""
+    """Which output/web page contains this tag (chunk-0 builds put the whole
+    document on index.html)."""
     items = _items()
     rec = items.get(tag)
     if rec is None:
         return None
+    page = None
     if rec["kind"] in ("section", "appendix"):
-        return f"{tag}.html"
-    sec = rec.get("section")
-    for t, r in items.items():
-        if r["kind"] in ("section", "appendix") and r["number"] == sec:
-            return f"{t}.html"
-    return None
+        page = f"{tag}.html"
+    else:
+        sec = rec.get("section")
+        for t, r in items.items():
+            if r["kind"] in ("section", "appendix") and r["number"] == sec:
+                page = f"{t}.html"
+                break
+    web = ROOT / "output" / "web"
+    if page and not (web / page).exists():
+        singles = [f.name for f in web.glob("*.html") if f.name != "index.html"]
+        if len(singles) == 1:              # chunk-0 build: one document page
+            return singles[0]
+        if (web / "index.html").exists():
+            return "index.html"
+    return page
 
 
 def links_for(tags) -> list[dict]:

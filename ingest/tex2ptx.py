@@ -314,14 +314,19 @@ def convert_inline(s: str, refs: "RefMap") -> str:
             continue
         m = re.match(r"\\cite(\[[^\]]*\])?\{([^}]*)\}", s[i:])
         if m:
+            # PreTeXt renders a biblio xref as [n] already, and a pin belongs
+            # in @detail ([n, pin]) — literal brackets here would double up.
             keys = [k.strip() for k in m.group(2).split(",")]
             pin = m.group(1)
-            xrefs = ", ".join(f'<xref ref="bib-{tagify(k)}"/>' for k in keys)
+            detail = ""
             if pin:
-                pin_text = convert_inline(pin[1:-1], refs)
-                out.append(f"[{xrefs}, {pin_text}]")
-            else:
-                out.append(f"[{xrefs}]")
+                pin_text = (pin[1:-1].replace("~", " ")
+                            .replace("\\S", "\u00a7").replace('"', "'"))
+                detail = f' detail="{xml_escape(pin_text)}"'
+            parts = [f'<xref ref="bib-{tagify(k)}"'
+                     + (detail if j == len(keys) - 1 else "") + "/>"
+                     for j, k in enumerate(keys)]
+            out.append(", ".join(parts))
             i += m.end()
             continue
         m = re.match(r"\\(emph|textit)\{", s[i:])

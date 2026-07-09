@@ -93,11 +93,13 @@ def check(config: dict) -> list[Finding]:
             continue
         div = division_of(x)
         cites.setdefault(ref, []).append(div)
-        tail = (x.tail or "")
-        if tail.startswith(","):
-            pin = tail[1:].split("]")[0].strip()
-            if pin:
-                pins.append((ref, pin, div))
+        pin = (x.get("detail") or "").strip()
+        if not pin:
+            tail = (x.tail or "")            # legacy literal-bracket form
+            if tail.startswith(","):
+                pin = tail[1:].split("]")[0].strip()
+        if pin:
+            pins.append((ref, pin, div))
 
     # --- 1. unused entries / 2. dangling citations ---
     for key in sorted(set(bib_texts) - set(cites)):

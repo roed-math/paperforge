@@ -12,7 +12,7 @@
   <!-- Inject the UI enhancement layer (slider + notation hovers) into every page.
        html.*.extra only emit the <script>/<link> tags; the files must be copied
        into the web output dir as a build step (see docs/HTML-FEATURES.md). -->
-  <xsl:param name="html.css.extra" select="'detail-ui.css'"/>
+  <xsl:param name="html.css.extra" select="'detail-ui.css paper-style.css'"/>
   <xsl:param name="html.js.extra"  select="'detail-ui.js'"/>
 
   <!-- PLACEHOLDER: paper-init sets this from paper.toml [inputs] lean_docs_base. -->

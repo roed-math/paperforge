@@ -1,0 +1,100 @@
+/* paperforge "paper look": research-article styling over the PreTeXt modern
+   theme. Goals: LaTeX-familiar fonts, black-and-white, a wide single column,
+   and quiet knowl/detail boundaries (light background, no heavy chrome). */
+
+/* -- 6. Computer Modern webfonts (the LaTeX look). Math is already Modern
+      via MathJax; this aligns the prose. -- */
+@import url("https://cdn.jsdelivr.net/gh/aaaakshat/cm-web-fonts@latest/fonts.css");
+
+:root:not(.dark-mode) {
+  /* -- 5. black and white: the theme derives nearly everything from these -- */
+  --primary-color: #111111;
+  --secondary-color: #222222;
+  --doc-title-color: #111111;
+  --byline-color: #333333;
+  --banner-background: #ffffff;
+  --navbar-background: #f6f6f6;
+  --toc-border-color: #dddddd;
+  --tocitem-highlight-background: #e8e8e8;
+  --tocitem-highlight-text-color: #111111;
+}
+
+/* light TOC sidebar: a paper's margin, not a book's chrome */
+.ptx-sidebar .ptx-toc, .ptx-toc {
+  background: #fafafa;
+}
+.ptx-toc .toc-item, .ptx-toc .toc-title-box a, .ptx-toc a {
+  background: transparent;
+  color: #222222;
+}
+.ptx-toc .toc-item.active, .ptx-toc .toc-current a {
+  background: #e8e8e8;
+  color: #111111;
+}
+
+/* -- 2. wider content column: the theme hardcodes 696px on .ptx-content -- */
+.ptx-main > .ptx-content { max-width: 58rem; }
+.ptx-content-footer { max-width: 58rem; }
+
+
+/* -- 6 cont.: prose in Computer Modern -- */
+.ptx-content, .ptx-content .para, .ptx-page, .ptx-masthead .title-container {
+  font-family: "Computer Modern Serif", "Latin Modern Roman", Georgia, serif;
+}
+.ptx-content .heading, .ptx-content h1, .ptx-content h2, .ptx-content h3,
+.ptx-content h4, .ptx-content h5 {
+  font-family: "Computer Modern Serif", "Latin Modern Roman", Georgia, serif;
+}
+
+/* -- 5 cont.: links quiet (papers are ink); keep affordance on hover -- */
+.ptx-content a.internal, .ptx-content .xref {
+  color: #111111;
+  text-decoration: underline;
+  text-decoration-color: #bbbbbb;
+  text-underline-offset: 2px;
+}
+.ptx-content a.internal:hover, .ptx-content .xref:hover {
+  text-decoration-color: #111111;
+}
+
+/* -- 3. quiet knowls: light gray field instead of borders/boxes -- */
+.ptx-content details.born-hidden-knowl {
+  border: none;
+  background: #f5f5f5;
+  border-radius: 4px;
+  padding: 0.35rem 0.7rem;
+  margin: 0.6rem 0;
+}
+.ptx-content details.born-hidden-knowl > summary.knowl__link {
+  color: #111111;
+  font-style: italic;
+  text-decoration: none;
+  list-style-position: outside;
+}
+.ptx-content details.born-hidden-knowl > summary.knowl__link .heading {
+  color: #111111;
+}
+.ptx-content details.born-hidden-knowl .knowl__content {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.2rem 0 0.1rem;
+}
+
+/* theorem-like blocks: no colored bars or boxes — amsart is flat -- */
+.ptx-content article.theorem-like,
+.ptx-content article.definition-like,
+.ptx-content article.remark-like {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 0;
+}
+
+/* xref preview knowls (click-to-open cross references) — same quiet field */
+.ptx-content .knowl__content {
+  background: #f7f7f7;
+  border: none;
+  box-shadow: none;
+  border-radius: 4px;
+}
