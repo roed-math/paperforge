@@ -29,6 +29,10 @@ import re
 from pathlib import Path
 
 CENSUS = re.compile(r"\*\*\[Classical\s*[—–-]\s*([A-Z]\d+[′']?)")
+# variant marker shape: **B7′ (dyadic Hilbert symbol), `[Classical.]` — ...
+CENSUS2 = re.compile(r"\*\*([A-Z]\d+[′']?)[^*\n]{0,80}\[Classical")
+# discharged form: "Citation (as the former axiom B12): ..."
+CENSUS3 = re.compile(r"former axiom\s+\*{0,2}\[?([A-Z]\d+[′']?)")
 CITE_LINE = re.compile(r"Citation[^:\n]{0,40}:\s*(.+?)(?:\n\n|-/|\nPaper:|$)", re.S)
 PAPER_LINE = re.compile(r"Paper:\s*(.+?)(?:\n|-/|$)")
 PAPER_REF = re.compile(
@@ -98,8 +102,12 @@ def main() -> int:
     old = json.load(open(args.old)) if args.old and args.old.exists() else None
 
     out = {}
-    # dedicated pass: `axiom` is not in lean_declmap's DECL keyword list
-    AX = re.compile(r"^\s*(?:protected\s+|private\s+)?axiom\s+([A-Za-z_][\w'.]*)")
+    # Scan axioms AND census-marked theorems: a discharged axiom (proved
+    # in-repo) keeps its **[Classical — ...]** marker and Citation: lines, so
+    # its literature obligation survives the discharge (status field tells
+    # the validator which is which).
+    AX = re.compile(r"^\s*(?:protected\s+|private\s+)?(axiom|theorem|lemma|def)\s+([A-Za-z_][\w'.]*)")
+    DISCHARGED = re.compile(r"Formerly the axiom|same-name theorem|discharged", re.I)
     for f in sorted(args.lean_root.rglob("*.lean")):
         if ".lake" in f.parts:
             continue
@@ -128,10 +136,17 @@ def main() -> int:
             if END.match(line) and stack:
                 stack.pop(); continue
             if m := AX.match(line):
-                ns = [s for s in stack if s]
-                full = ".".join(ns + [m.group(1)]) if ns else m.group(1)
                 doc = pending or ""
-                census = (CENSUS.search(doc) or [None, None])[1]
+                pending = None
+                cm = (CENSUS.search(doc) or CENSUS2.search(doc)
+                      or CENSUS3.search(doc))
+                census = cm.group(1) if cm else None
+                is_axiom = m.group(1) == "axiom"
+                if not is_axiom and not (census and (DISCHARGED.search(doc)
+                                                     or "Citation" in doc)):
+                    continue    # ordinary theorem, not a classical leaf
+                ns = [s for s in stack if s]
+                full = ".".join(ns + [m.group(2)]) if ns else m.group(2)
                 cites = [c.strip().replace("\n", " ")
                          for c in CITE_LINE.findall(doc.replace("*", "").replace("`", ""))]
                 works = sorted({g1 or g2 for g1, g2 in WORK.findall(" ".join(cites))
@@ -142,11 +157,11 @@ def main() -> int:
                                     "Local", "Cor", "Rem", "Grundlehren")})
                 prefs = PAPER_REF.findall(" ".join(PAPER_LINE.findall(doc)))
                 out[full] = {
-                    "census": census, "file": str(f.relative_to(args.lean_root)),
+                    "census": census, "status": "axiom" if is_axiom else "discharged",
+                    "file": str(f.relative_to(args.lean_root)),
                     "line": ln, "citation_lines": cites, "works": works,
                     "paper_tags": resolve_paper_tags(prefs, old, cur),
                 }
-                pending = None
             elif line.strip() and not line.lstrip().startswith("--"):
                 if depth == 0:
                     pending = None
