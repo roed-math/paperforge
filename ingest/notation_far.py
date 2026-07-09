@@ -157,9 +157,15 @@ def main() -> int:
     if map_path.exists():
         import json
         entries = json.load(open(map_path))
-        map_defsites = {k: r["defsite"] for k, r in entries.items()
+        flat = {}
+        for k, r in entries.items():
+            if r.get("kind") == "ambiguous":
+                flat.update(r["senses"])
+            else:
+                flat[k] = r
+        map_defsites = {k: r["defsite"] for k, r in flat.items()
                         if r.get("defsite")}
-        skip_keys = {k for k, r in entries.items() if r.get("standard")}
+        skip_keys = {k for k, r in flat.items() if r.get("standard")}
 
     files = reading_order_files(args.instance / "source")
     defined, uses, changed = collect_and_rewrite(

@@ -169,14 +169,42 @@ LABEL_RE = re.compile(r"\\label\{([^}]*)\}")
 # meaning is section-dependent).
 NOTATION_WRAPS: list[tuple[str, re.Pattern, frozenset | None]] = []
 _CURRENT_DIVISION: list[str] = [""]     # tag of the division being converted
+_CURRENT_BLOCK: list[str] = [""]        # theorem-like tag, else the division
+
+# Ambiguous single-letter notation: the same letter means different things in
+# different places (Y = boundary-framed ambient vs Demushkin generator), which
+# no regex can resolve. Map entries with kind="ambiguous" carry a `senses`
+# table; per-BLOCK sense decisions live in a committed cache
+# (notation/disambiguation.json) produced by an LLM classification pass.
+# Unclassified (key, block) pairs are left UNWRAPPED (safe default) and
+# reported to a worklist file for incremental classification.
+AMBIG_WRAPS: list[tuple[str, re.Pattern, dict]] = []   # (key, regex, senses)
+DISAMBIG: dict = {}                                    # key -> {block: sense}
+UNCLASSIFIED: dict = {}                                # (key, block) -> [ctx]
 
 # --mathbb: restyle bold number-system letters to blackboard bold.
 MATHBB_LETTERS: str = ""
 _MATHBB_RE: re.Pattern | None = None
 
 
+_CURRENT_SECTION: list[str] = [""]      # top-level division (scope matching)
+
+
 def set_division(tag: str) -> None:
+    """Enter a top-level division (section/appendix)."""
+    _CURRENT_SECTION[0] = tag
     _CURRENT_DIVISION[0] = tag
+    _CURRENT_BLOCK[0] = tag
+
+
+def set_subdivision(tag: str) -> None:
+    """Enter a subsection: finer block grain, same top-level scope."""
+    _CURRENT_DIVISION[0] = tag
+    _CURRENT_BLOCK[0] = tag
+
+
+def set_block(tag: str) -> None:
+    _CURRENT_BLOCK[0] = tag
 
 
 def set_mathbb(letters: str) -> None:
@@ -190,10 +218,13 @@ def set_mathbb(letters: str) -> None:
             r"\\mathbf\s*(\{)?([" + letters + r"])(?(1)\})")
 
 
-def load_notation_wraps(map_path: Path) -> None:
+def load_notation_wraps(map_path: Path, disambig_path: Path | None = None) -> None:
     entries = json.load(open(map_path))
     wraps = []
     for key, rec in entries.items():
+        if rec.get("kind") == "ambiguous":
+            AMBIG_WRAPS.append((key, re.compile(rec["match"]), rec["senses"]))
+            continue
         if rec.get("kind") == "macro":
             pat = re.escape(rec["match"]) + r"(?![a-zA-Z])"
         else:
@@ -203,6 +234,8 @@ def load_notation_wraps(map_path: Path) -> None:
     # longest match string first, so \WA never loses to a shorter prefix
     wraps.sort(key=lambda t: -t[3])
     NOTATION_WRAPS.extend((k, p, s) for k, p, s, _ in wraps)
+    if disambig_path and disambig_path.exists():
+        DISAMBIG.update(json.load(open(disambig_path)))
 
 
 def convert_math(s: str) -> str:
@@ -211,9 +244,20 @@ def convert_math(s: str) -> str:
     if _MATHBB_RE is not None:
         s = _MATHBB_RE.sub(r"\\mathbb{\2}", s)
     for key, pat, scope in NOTATION_WRAPS:
-        if scope is not None and _CURRENT_DIVISION[0] not in scope:
+        if scope is not None and _CURRENT_DIVISION[0] not in scope \
+                and _CURRENT_SECTION[0] not in scope:
             continue
         s = pat.sub(lambda m, k=key: "\\notn{%s}{%s}" % (k, m.group(0)), s)
+    block = _CURRENT_BLOCK[0]
+    for key, pat, senses in AMBIG_WRAPS:
+        decision = DISAMBIG.get(key, {}).get(block)
+        if decision in senses:
+            s = pat.sub(lambda m, k=decision: "\\notn{%s}{%s}" % (k, m.group(0)), s)
+        elif decision is None:
+            for m in pat.finditer(s):
+                ctx = s[max(0, m.start() - 40):m.end() + 40]
+                UNCLASSIFIED.setdefault(key, {}).setdefault(block, []).append(ctx)
+        # decision == "none": deliberate no-wrap
     return xml_escape(s)
 
 
@@ -532,6 +576,7 @@ def convert_theoremlike(env: str, body: str, ctx: Ctx) -> None:
         tag = f"thmlike-{number.replace('.', '-')}"
         warn(f"unlabeled {env} {number}: generated tag '{tag}' (drift hazard)")
     ctx.num.record(tag, env, label, number)
+    set_block(tag)                      # ambiguous-notation decision grain
     ctx.emit(f'<{PTX_THM[env]} xml:id="{tag}">')
     ctx.indent += 1
     if title:
@@ -547,6 +592,7 @@ def convert_theoremlike(env: str, body: str, ctx: Ctx) -> None:
         ctx.emit(f'<lean ref="{rec["decl"]}">{rec["decl"]}</lean>')
     ctx.indent -= 1
     ctx.emit(f"</{PTX_THM[env]}>")
+    set_block(_CURRENT_DIVISION[0])     # back to division grain
 
 
 def convert_proof(body: str, ctx: Ctx) -> None:
@@ -762,12 +808,16 @@ def main() -> int:
     ap.add_argument("--notation-map", type=Path,
                     help="notation map JSON; wraps tracked notation in math "
                          "with \\notn{key}{...} at conversion time")
+    ap.add_argument("--disambig", type=Path,
+                    help="block-grain sense decisions for ambiguous notation "
+                         "(notation/disambiguation.json); unclassified "
+                         "occurrences are reported, not wrapped")
     ap.add_argument("--mathbb", metavar="LETTERS", default="",
                     help="restyle \\mathbf X -> \\mathbb{X} for these letters "
                          "(e.g. QZFP), in math and in docinfo macros")
     args = ap.parse_args()
     if args.notation_map:
-        load_notation_wraps(args.notation_map)
+        load_notation_wraps(args.notation_map, args.disambig)
     if args.mathbb:
         set_mathbb(args.mathbb)
 
@@ -846,6 +896,7 @@ def main() -> int:
             stag = tagify(sub["label"]) if sub["label"] else \
                 tag + "-" + slugify(sub["title"])
             num.record(stag, "subsection", sub["label"], num.next_subsec())
+            set_subdivision(stag)       # subsection-grain blocks, same scope
             ctx.emit(f'<subsection xml:id="{stag}">')
             ctx.indent += 1
             ctx.emit(f"<title>{convert_inline(sub['title'], refs)}</title>")
@@ -867,6 +918,13 @@ def main() -> int:
             {"snapshot": args.snapshot, "source": str(args.texfile),
              "items": num.records}, indent=1))
         print(f"wrote {args.numbering} ({len(num.records)} items)")
+    if UNCLASSIFIED:
+        n = sum(len(blocks) for blocks in UNCLASSIFIED.values())
+        wl = (args.disambig.parent if args.disambig
+              else args.notation_map.parent) / "unclassified.json"
+        wl.write_text(json.dumps(UNCLASSIFIED, indent=1))
+        warn(f"{n} ambiguous-notation blocks unclassified; worklist at {wl} "
+             f"(occurrences left unwrapped)")
     print(f"{len(WARN)} warning(s)")
     return 0
 

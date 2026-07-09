@@ -52,7 +52,15 @@ def main() -> int:
     items = json.load(open(root / "crosswalk" / "numbering-current.json"))["items"]
 
     registry = {}
-    for key, rec in entries.items():
+
+    def flat(entries):
+        for key, rec in entries.items():
+            if rec.get("kind") == "ambiguous":
+                yield from rec["senses"].items()   # each sense is a key
+            else:
+                yield key, rec
+
+    for key, rec in flat(entries):
         target = rec.get("href") or rec.get("defsite")
         href = resolve_href(target, items) if target else None
         registry[key] = {"html": rec["definition"], "href": href}

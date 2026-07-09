@@ -34,6 +34,13 @@ def _inside_definition(el) -> bool:
                for anc in el.iterancestors())
 
 
+def _inside_abstract(el) -> bool:
+    """Abstracts summarize the whole paper and necessarily forward-reference
+    notation; uses there are exempt from order checking."""
+    return any(isinstance(anc.tag, str) and _localname(anc) == "abstract"
+               for anc in el.iterancestors())
+
+
 def _load_map(config: dict):
     """Optional notation map: defsite ids per key + standard exemptions."""
     import json
@@ -44,8 +51,14 @@ def _load_map(config: dict):
     if not path.exists():
         return {}, set()
     entries = json.load(open(path))
-    defsites = {k: r["defsite"] for k, r in entries.items() if r.get("defsite")}
-    standard = {k for k, r in entries.items() if r.get("standard")}
+    flat = {}
+    for k, r in entries.items():
+        if r.get("kind") == "ambiguous":
+            flat.update(r["senses"])
+        else:
+            flat[k] = r
+    defsites = {k: r["defsite"] for k, r in flat.items() if r.get("defsite")}
+    standard = {k for k, r in flat.items() if r.get("standard")}
     return defsites, standard
 
 
@@ -84,6 +97,8 @@ def check(config: dict) -> list[Finding]:
                     "<notation> without @key or \\notn in its <usage> — "
                     "cannot participate in order checking", nearest_id(el)))
         elif tag in MATH_TAGS:
+            if _inside_abstract(el):
+                continue
             text = "".join(el.itertext())
             for m in _NOTN.finditer(text):
                 key = m.group(1)
