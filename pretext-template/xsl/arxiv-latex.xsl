@@ -34,7 +34,7 @@
         <xsl:apply-templates select="email" mode="article-info"/>
     </xsl:if>
     <xsl:if test="following-sibling::author" >
-        <xsl:text>&#xa;\and</xsl:text>
+        <xsl:text>%&#xa;\and</xsl:text>
     </xsl:if>
     <xsl:text>%&#xa;</xsl:text>
   </xsl:template>

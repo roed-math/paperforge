@@ -835,9 +835,10 @@ def main() -> int:
                          "occurrences are reported, not wrapped")
     ap.add_argument("--author", action="append", default=[], dest="authors",
                     metavar="NAME|AFFIL_LINE|...",
-                    help="additional author (repeatable), appended after the "
-                         "draft's author(s); affiliation lines separated "
-                         "by '|'")
+                    help="additional author (repeatable); affiliation lines "
+                         "separated by '|'. The special spec '@draft' "
+                         "positions the draft's own author in the order; "
+                         "without it the draft author comes first")
     ap.add_argument("--mathbb", metavar="LETTERS", default="",
                     help="restyle \\mathbf X -> \\mathbb{X} for these letters "
                          "(e.g. QZFP), in math and in docinfo macros")
@@ -1089,9 +1090,14 @@ def write_tree(outdir: Path, title: str, author: str, macros: str,
     def _xml_escape(s: str) -> str:
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    # draft author first (already inline-converted), then --author additions
-    authors = [f"        <author><personname>{author}</personname></author>"]
+    # --author specs in the order given; '@draft' places the draft's own
+    # author (already inline-converted) explicitly, else it comes first
+    draft_entry = f"        <author><personname>{author}</personname></author>"
+    authors = []
     for spec in extra_authors:
+        if spec.strip() == "@draft":
+            authors.append(draft_entry)
+            continue
         name, *aff = [p.strip() for p in spec.split("|")]
         if len(aff) == 1:
             inst = f"<institution>{_xml_escape(aff[0])}</institution>"
@@ -1103,6 +1109,8 @@ def write_tree(outdir: Path, title: str, author: str, macros: str,
             inst = ""
         authors.append(f"        <author><personname>{_xml_escape(name)}"
                        f"</personname>{inst}</author>")
+    if draft_entry not in authors:
+        authors.insert(0, draft_entry)
     authors_block = "\n".join(authors)
 
     main = f"""{HEADER}<pretext xml:lang="en-US" xmlns:xi="http://www.w3.org/2001/XInclude">
