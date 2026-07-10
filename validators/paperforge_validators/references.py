@@ -44,6 +44,14 @@ def _pdf_text(pdf: Path, cache_dir: Path) -> str | None:
     return cache.read_text(errors="ignore")
 
 
+def _text_usable(text: str) -> bool:
+    """A scanned PDF with a broken OCR layer extracts as token soup; checking
+    pins against that is worse than useless (false verify / false missing)."""
+    sample = text[:20000]
+    words = re.findall(r"[A-Za-z]{4,}", sample)
+    return len(words) >= len(sample) / 100
+
+
 def _bib_pdf_map(bib_texts: dict[str, str], pdf_dir: Path) -> dict[str, Path]:
     """bib key -> local PDF, by surname-token overlap with the filename."""
     pdfs = list(pdf_dir.glob("*.pdf")) if pdf_dir.exists() else []
@@ -180,6 +188,7 @@ def check(config: dict) -> list[Finding]:
     pdf_dir = root / config.get("references", {}).get("pdf_dir", "references/")
     cache_dir = root / ".cache" / "paperforge"
     bib_pdf = _bib_pdf_map(bib_texts, pdf_dir)
+    unusable: set[str] = set()
     for key, pin, div in pins:
         pdf = bib_pdf.get(key)
         if pdf is None:
@@ -190,6 +199,15 @@ def check(config: dict) -> list[Finding]:
             continue
         text = _pdf_text(pdf, cache_dir)
         if text is None:
+            continue
+        if not _text_usable(text):
+            if pdf.name not in unusable:
+                unusable.add(pdf.name)
+                findings.append(Finding(
+                    "references", "warning",
+                    f"{pdf.name}: extracted text is unusable (scanned copy / "
+                    f"broken OCR layer) — pins against '{key}' cannot be "
+                    f"machine-verified; supply a digital copy", key))
             continue
         toks = _PIN_NUM.findall(pin)
         missing = [t for t in toks if t not in text]
