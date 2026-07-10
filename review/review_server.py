@@ -164,9 +164,11 @@ def collect_bib() -> dict:
                 extra.read_text(), re.S):
             raw.setdefault(m.group(1), " ".join(
                 re.sub(r"<[^>]+>", " ", m.group(2)).split()))
-    claims = ROOT / "novelty" / "claims.json"
-    if claims.exists():
-        for c in json.load(open(claims))["claims"].values():
+    for path, group in ((ROOT / "novelty" / "claims.json", "claims"),
+                        (ROOT / "followups" / "questions.json", "questions")):
+        if not path.exists():
+            continue
+        for c in json.load(open(path))[group].values():
             for k, v in (c.get("new_refs") or {}).items():
                 raw.setdefault(k, re.sub(r"\\[a-zA-Z]+|[{}]|<[^>]+>", "",
                                          " ".join(v.split()))
@@ -298,6 +300,103 @@ class Novelty:
             c["author_note"] = note
         if text is not None:
             c["statement"] = text
+        json.dump(data, open(self.path, "w"), indent=1)
+
+
+class Followups:
+    name = "followups"
+    label = "Follow-up questions"
+    path = ROOT / "followups" / "questions.json"
+    blurb = ("Candidate follow-up questions / natural next steps, proposed "
+             "by the pipeline from the paper + formalization (skills/"
+             "followup-questions). Human questions live in the same file "
+             "(distinct generator). Approved questions are eligible for a "
+             "closing 'Further questions' section — or the website only.")
+    choices = ["proposed", "author-approved", "author-rejected",
+               "needs-discussion"]
+    choice_help = {
+        "proposed": "Drafted by the pipeline; awaiting your judgment. Not rendered.",
+        "author-approved": "Worth stating publicly (edit the text first if "
+                           "needed). Eligible for the Further-questions "
+                           "section or the project website.",
+        "author-rejected": "Wrong, uninteresting, or already answered. Kept "
+                           "for the record so the pipeline does not "
+                           "re-propose it.",
+        "needs-discussion": "Parked for a conversation. Neither rendered nor "
+                            "discarded.",
+    }
+    CLASSES = {
+        "extension": "same theorem, wider scope",
+        "sharpness": "minimality / converses / no-go statements",
+        "application": "what the result unlocks downstream",
+        "method-export": "the technique applied elsewhere",
+        "formalization": "Lean-side continuations and re-verification",
+        "data": "databases, tables, machine-readable artifacts",
+    }
+
+    def items(self):
+        if not self.path.exists():
+            return []
+        raw = json.load(open(self.path))
+        out = []
+        for qid, q in raw["questions"].items():
+            fields = [
+                dict(label=f"class: {q['cls']} — "
+                           f"{self.CLASSES.get(q['cls'], '?')}",
+                     value="",
+                     help="The follow-up taxonomy: extension / sharpness / "
+                          "application / method-export / formalization / "
+                          "data. One primary class per question."),
+                dict(label="confidence", value=q.get("confidence", "?"),
+                     help="The pipeline's confidence that the question is "
+                          "genuinely open AND naturally posed by this paper. "
+                          "Not your judgment — that is the status."),
+                dict(label="grounding", value="; ".join(q.get("evidence", [])),
+                     help="What in the paper or the formalization seeds this "
+                          "question: proof stages, census axioms, hedges, "
+                          "scope restrictions, independence remarks."),
+            ]
+            if q.get("literature"):
+                fields.append(dict(
+                    label="literature check", value=q["literature"],
+                    help="What a literature pass found or still must check. "
+                         "A question already answered in print is demoted "
+                         "to a citation, never rendered as open."))
+            if q.get("new_refs"):
+                fields.append(dict(
+                    label="new references",
+                    value=", ".join(q["new_refs"]),
+                    help="Bibliography entries this question introduces. "
+                         "Materialized into references/extra-biblio.xml "
+                         "only when the question is approved and rendered — "
+                         "the no-uncited-entries gate stays green meanwhile."))
+            gf = gen_field(q, raw)
+            if gf:
+                fields.append(gf)
+            out.append(dict(
+                id=qid, title=qid, fields=fields,
+                text=q["statement"],
+                text_help="The question itself, in inline LaTeX (same "
+                          "conventions as novelty claims): $...$ math with "
+                          "the paper's macros, \\cite[pin]{KEY} by exact "
+                          "bibliography key, \\cref{label} internal "
+                          "references, \\emph, \\texttt, --/---. What you "
+                          "approve is what would be typeset.",
+                links=links_for(q.get("paper_anchors")),
+                status=q["status"], choices=self.choices,
+                choice_help=self.choice_help,
+                note=q.get("author_note", "")))
+        return out
+
+    def decide(self, iid, status, note, text):
+        data = json.load(open(self.path))
+        q = data["questions"][iid]
+        if status:
+            q["status"] = status
+        if note is not None:
+            q["author_note"] = note
+        if text is not None:
+            q["statement"] = text
         json.dump(data, open(self.path, "w"), indent=1)
 
 
@@ -492,7 +591,8 @@ class Known:
         json.dump(data, open(self.path, "w"), indent=1)
 
 
-ADAPTERS = {a.name: a() for a in (Novelty, Disambig, CitationNeeds, Known)}
+ADAPTERS = {a.name: a() for a in (Novelty, Followups, Disambig,
+                                  CitationNeeds, Known)}
 
 
 # ---------------------------------------------------------------- server
