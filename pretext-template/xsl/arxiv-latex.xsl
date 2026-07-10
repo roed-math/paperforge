@@ -11,4 +11,31 @@
              select="'\usepackage{booktabs}&#xa;\providecommand{\class}[2]{#2}'"/>
   <!-- formalization badges are an HTML feature; drop in journal LaTeX -->
   <xsl:template match="lean"/>
+
+  <!-- UPSTREAM BUG WORKAROUND: for an author with an affiliation, classic
+       emits the affiliation's trailing newline AND its own, leaving a blank
+       line inside \author{...}. \author is not \long, so the \par is a LaTeX
+       error and the whole author block silently vanishes from \maketitle.
+       Identical to core except the trailing newline is a comment-newline,
+       which TeX eats. -->
+  <xsl:template match="author" mode="article-frontmatter">
+    <xsl:apply-templates select="personname" />
+    <xsl:if test="support">
+        <xsl:text>\thanks{</xsl:text>
+        <xsl:apply-templates select="support" />
+        <xsl:text>}</xsl:text>
+    </xsl:if>
+    <xsl:if test="affiliation">
+        <xsl:text>\\&#xa;</xsl:text>
+        <xsl:apply-templates select="affiliation" />
+    </xsl:if>
+    <xsl:if test="email">
+        <xsl:text>\\&#xa;</xsl:text>
+        <xsl:apply-templates select="email" mode="article-info"/>
+    </xsl:if>
+    <xsl:if test="following-sibling::author" >
+        <xsl:text>&#xa;\and</xsl:text>
+    </xsl:if>
+    <xsl:text>%&#xa;</xsl:text>
+  </xsl:template>
 </xsl:stylesheet>

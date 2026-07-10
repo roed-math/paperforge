@@ -308,8 +308,17 @@ def convert_inline(s: str, refs: "RefMap") -> str:
             if kind == "hyperref":
                 # \hyperref[label]{text} -> xref with custom text dropped
                 label = (opt or "[]")[1:-1]
-                out.append(f'<xref ref="{refs.tag(label)}"/>')
+                out.append(f'<xref ref="{refs.tag(label)}" text="global"/>')
+            elif kind == "ref":
+                # bare \ref = number only (the draft supplies its own type
+                # word); PreTeXt's default xref text would duplicate it as
+                # "Theorem Theorem 1.2" in every format
+                parts = [a.strip() for a in arg.split(",")]
+                out.append(", ".join(
+                    f'<xref ref="{refs.tag(a)}" text="global"/>'
+                    for a in parts))
             else:
+                # \cref/\Cref/\eqref keep PreTeXt's default text form
                 parts = [a.strip() for a in arg.split(",")]
                 out.append(", ".join(f'<xref ref="{refs.tag(a)}"/>' for a in parts))
             i += m.end()
@@ -824,6 +833,11 @@ def main() -> int:
                     help="block-grain sense decisions for ambiguous notation "
                          "(notation/disambiguation.json); unclassified "
                          "occurrences are reported, not wrapped")
+    ap.add_argument("--author", action="append", default=[], dest="authors",
+                    metavar="NAME|AFFIL_LINE|...",
+                    help="additional author (repeatable), appended after the "
+                         "draft's author(s); affiliation lines separated "
+                         "by '|'")
     ap.add_argument("--mathbb", metavar="LETTERS", default="",
                     help="restyle \\mathbf X -> \\mathbb{X} for these letters "
                          "(e.g. QZFP), in math and in docinfo macros")
@@ -927,7 +941,7 @@ def main() -> int:
         title = convert_inline(title, refs)
         author = convert_inline(author, refs)
         write_tree(args.out, title, author, macros, abstract_ptx,
-                   out_lines_per_sec)
+                   out_lines_per_sec, extra_authors=args.authors)
     if args.numbering:
         args.numbering.parent.mkdir(parents=True, exist_ok=True)
         args.numbering.write_text(json.dumps(
@@ -1049,7 +1063,7 @@ def apply_insertions(secs) -> int:
 
 
 def write_tree(outdir: Path, title: str, author: str, macros: str,
-               abstract: str, secs) -> None:
+               abstract: str, secs, extra_authors: list[str] = ()) -> None:
     outdir.mkdir(parents=True, exist_ok=True)
     napplied = apply_insertions(secs)
     if INSERTIONS and napplied < sum(len(v) for v in INSERTIONS.values()):
@@ -1072,6 +1086,25 @@ def write_tree(outdir: Path, title: str, author: str, macros: str,
 {apx_incl}
 {refs_part}
     </backmatter>"""
+    def _xml_escape(s: str) -> str:
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # draft author first (already inline-converted), then --author additions
+    authors = [f"        <author><personname>{author}</personname></author>"]
+    for spec in extra_authors:
+        name, *aff = [p.strip() for p in spec.split("|")]
+        if len(aff) == 1:
+            inst = f"<institution>{_xml_escape(aff[0])}</institution>"
+        elif aff:
+            inst = ("<institution>"
+                    + "".join(f"<line>{_xml_escape(l)}</line>" for l in aff)
+                    + "</institution>")
+        else:
+            inst = ""
+        authors.append(f"        <author><personname>{_xml_escape(name)}"
+                       f"</personname>{inst}</author>")
+    authors_block = "\n".join(authors)
+
     main = f"""{HEADER}<pretext xml:lang="en-US" xmlns:xi="http://www.w3.org/2001/XInclude">
   <docinfo>
     <document-id>gq2-paper</document-id>
@@ -1085,7 +1118,7 @@ def write_tree(outdir: Path, title: str, author: str, macros: str,
     <title>{title}</title>
     <frontmatter>
       <titlepage>
-        <author><personname>{author}</personname></author>
+{authors_block}
       </titlepage>
       <abstract>
 {abstract}

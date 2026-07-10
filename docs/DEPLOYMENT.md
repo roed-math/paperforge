@@ -65,6 +65,15 @@ declarations directly. Seed chapter: the presentation theorem + marked
 Demushkin normalization; full authoring via the /blueprint skill once the
 formalization stabilizes.
 
+Two gotchas of the split layout:
+
+- `lake update` reconciles `lean-toolchain` to the VersoBlueprint branch's
+  (e.g. rc2 → final), which silently breaks the Mathlib cache. Restore the
+  formalization's exact toolchain after any `lake update`.
+- Chapters live outside the formalization's lib, so each chapter file must
+  `import <TheProject>` or its `(lean := "…")` names fail to resolve and
+  every node renders as unformalized (the build only warns).
+
 ## Provenance: the AI-development record
 
 Three views over the assistant chat logs. The unit of organization is the
