@@ -197,6 +197,19 @@ def extract_macros() -> str:
 # text?, text_help?, links, status, choices, choice_help:{}, note}];
 # decide(id, status, note, text) writes back. help() -> artifact-level blurb.
 
+
+def gen_field(rec=None, data=None):
+    """Provenance field: item-level 'generator', else artifact-level
+    '_generator' (docs/ARCHITECTURE.md, provenance conventions)."""
+    g = (rec or {}).get("generator") or (data or {}).get("_generator")
+    if not g:
+        return None
+    return dict(label="proposed by", value=g,
+                help="The model/agent that generated this proposal. The "
+                     "decision is yours either way; re-runs never overwrite "
+                     "decisions, whoever the generator is.")
+
+
 class Novelty:
     name = "novelty"
     label = "Novelty claims"
@@ -219,7 +232,8 @@ class Novelty:
     def items(self):
         if not self.path.exists():
             return []
-        data = json.load(open(self.path))["claims"]
+        raw = json.load(open(self.path))
+        data = raw["claims"]
         out = []
         for cid, c in data.items():
             fields = [
@@ -257,6 +271,9 @@ class Novelty:
                     label="machine-checkable", value="yes",
                     help="The claim's core comparison is formal (e.g. Lean "
                          "hypothesis lists), not judgment."))
+            gf = gen_field(c, raw)
+            if gf:
+                fields.append(gf)
             out.append(dict(
                 id=cid, title=cid, fields=fields,
                 text=c["statement"],
@@ -315,16 +332,22 @@ class Disambig:
             return []
         data = json.load(open(self.path))
         senses, sense_help = self._senses()
+        gf = gen_field(data=data)
         out = []
         for key, blocks in data.items():
+            if key.startswith("_"):        # file metadata, not a letter
+                continue
             for block, sense in sorted(blocks.items()):
+                fields = [dict(
+                    label="block", value=block,
+                    help="The theorem-or-division tag this decision "
+                         "covers. One sense per block (a statement "
+                         "essentially never mixes senses of one letter).")]
+                if gf:
+                    fields.append(gf)
                 out.append(dict(
                     id=f"{key}@{block}", title=f"{key} in {block}",
-                    fields=[dict(
-                        label="block", value=block,
-                        help="The theorem-or-division tag this decision "
-                             "covers. One sense per block (a statement "
-                             "essentially never mixes senses of one letter).")],
+                    fields=fields,
                     text=None, links=links_for([block]),
                     status=sense, choices=senses.get(key, [sense, "none"]),
                     choice_help=sense_help, note=""))
@@ -377,12 +400,15 @@ class CitationNeeds:
                                help=self.FIELD_HELP.get(k,
                                     "Pipeline metadata."))
                           for k, v in rec.items()
-                          if k not in ("decision", "author_note")]
+                          if k not in ("decision", "author_note", "generator")]
                 fields.insert(0, dict(
                     label="source", value=group,
                     help="axiom-driven: the Lean census anchors this fact "
                          "here. named-results: the authority-phrase scan "
                          "flagged the block."))
+                gf = gen_field(rec, data)
+                if gf:
+                    fields.append(gf)
                 tag = iid.split("#")[0]
                 out.append(dict(
                     id=f"{group}|{iid}", title=iid, fields=fields,
@@ -438,14 +464,18 @@ class Known:
     def items(self):
         if not self.path.exists():
             return []
-        data = json.load(open(self.path))["decisions"]
+        raw = json.load(open(self.path))
+        data = raw["decisions"]
         out = []
         for decl, rec in data.items():
             fields = [dict(label=k,
                            value=v if isinstance(v, str) else json.dumps(v),
                            help=self.FIELD_HELP.get(k, "Pipeline metadata."))
                       for k, v in rec.items()
-                      if k not in ("status", "author_note")]
+                      if k not in ("status", "author_note", "generator")]
+            gf = gen_field(rec, raw)
+            if gf:
+                fields.append(gf)
             out.append(dict(id=decl, title=decl.split(".")[-1], fields=fields,
                             text=None, links=[], status=rec["status"],
                             choices=self.choices, choice_help=self.choice_help,

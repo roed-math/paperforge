@@ -30,3 +30,13 @@ Bootstraps an instance repo from the tool's templates.
 ## Notes
 - Never overwrite existing content without confirmation.
 - The instance keeps a pinned reference to the tool version used.
+
+## Contract
+
+- **Reads:** the paperforge checkout (`pretext-template/`, `templates/`); the
+  author interview for `paper.toml` values.
+- **Writes:** the instance scaffold (`source/`, `xsl/`, `publication/`,
+  `paper.toml`, `scripts/build-web.sh`, empty sidecar dirs).
+- **Gate:** `pretext build web` succeeds in the stamped instance.
+- **Provenance:** the scaffolding commit records the paperforge version; no
+  generator stamp (nothing is proposed).

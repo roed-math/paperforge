@@ -19,3 +19,12 @@ Requirement 9. The AI draft has grammar problems; this cleans them.
   mathematical judgment, leave a marker for the author instead.
 - This pass is the most mechanical; consider running it last, after content passes
   have settled, to avoid re-editing.
+
+## Contract
+
+- **Reads:** prose in `source/` (never math or `verbatim` directive text);
+  `style.corpus` for deliberate conventions.
+- **Writes:** minimal prose edits — discrete commits.
+- **Gate:** `run_all` stays clean; meaning preservation is reviewed by the author
+  on the diffs.
+- **Provenance:** `Generated-by: <model-id>` trailer on every commit.

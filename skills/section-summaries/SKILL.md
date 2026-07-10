@@ -20,3 +20,13 @@ enforces *presence*, this skill supplies *quality*.
 ## Interaction with detail tiers
 The summary itself is core (always shown). A deeper "proof sketch" belongs in a
 higher `@detail-level` block within the introduction, so it is collapsible in HTML.
+
+## Contract
+
+- **Reads:** divisions lacking an `<introduction>` (the worklist is exactly the
+  `validators/section_summaries.py` error list); `style.corpus`/`style.advice`.
+- **Writes:** an `<introduction>` per missing division plus a reviewable
+  `difficulty` attribute — one commit per division.
+- **Gate:** `section_summaries.py` reports zero errors; `plagiarism.py` clean on
+  the new prose.
+- **Provenance:** `Generated-by: <model-id>` trailer on every commit.

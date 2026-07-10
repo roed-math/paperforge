@@ -27,3 +27,15 @@ Requirement 11. The author's control surface. Full spec: ../../docs/DIRECTIVES.m
 - Run `validators/directives.py` first; refuse directives whose `target` is stale.
 - Never batch multiple directives into one commit — the per-commit trail is the
   audit mechanism.
+
+## Contract
+
+- **Reads:** `directives/*.md`, inline `@forge` markers in `source/`,
+  `style.corpus`/`style.advice`.
+- **Writes:** PreTeXt source edits — one commit per directive; consumed sidecars
+  move to `directives/applied/`.
+- **Gate:** `validators/directives.py` clean before starting (no stale targets);
+  full `run_all` after.
+- **Provenance:** each commit names the directive and carries a
+  `Generated-by: <model-id>` trailer for `instruct` directives (`verbatim` text
+  is the author's own voice — no stamp).

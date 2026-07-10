@@ -48,3 +48,17 @@ can do; improve the script instead (the improvement ports to every future paper)
 - Do not invent mathematical content — gaps (bridging text, summaries) belong
   to later skills.
 - Do not rename tags on re-ingestion; tag stability is the contract.
+
+## Contract
+
+- **Reads:** `inputs.ai_draft` (paper.toml) plus the sidecars merged at ingest
+  (`notation/notation-map.json`, `notation/disambiguation.json`,
+  `references/extra-biblio.xml`, `content/insertions/`).
+- **Writes:** `source/*.ptx` and `crosswalk/numbering-<snapshot>.json` — via the
+  deterministic engine only.
+- **Gate:** `xmllint --noout source/*.ptx`; `pretext build web`; a second run is
+  diff-clean (idempotency); `python -m paperforge_validators.run_all` introduces
+  no new errors.
+- **Provenance:** engine output is deterministic (no stamp). Judgment fixes for
+  converter warnings are separate commits with a `Generated-by: <model-id>`
+  trailer.

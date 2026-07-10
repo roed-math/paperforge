@@ -42,3 +42,14 @@ question for the author rather than deciding.
 - Never fabricate a reference: every entry must correspond to a real work you
   located (record where you found it in the commit message).
 - Prior-work claims ("the first", "extends X") need author sign-off.
+
+## Contract
+
+- **Reads:** the Lean repo's literature docs + docstring `Citation:` lines;
+  draft prose; web/arXiv searches.
+- **Writes:** paired additions — a `references/extra-biblio.xml` entry + citing
+  fragment in `content/insertions/` (priority claims go through directives
+  instead).
+- **Gate:** `references.py` — no orphan entries, no dangling cites.
+- **Provenance:** `Generated-by: <model-id>` trailer; the commit message records
+  where the work was located.

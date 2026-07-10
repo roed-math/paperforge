@@ -59,3 +59,15 @@ therefore does NOT invent novelty statements: it renders the **dossier**.
 - If the introduction already contains novelty statements not backed by any
   approved claim, flag them to the author rather than silently keeping or
   deleting them.
+
+## Contract
+
+- **Reads:** `novelty/claims.json` — `author-approved` claims ONLY;
+  `references/extra-biblio.xml` for `new_refs` resolution.
+- **Writes:** intro fragments in `content/insertions/` (with claim-id XML
+  comments for traceability); new bib entries via `claim_inline.py --biblio`.
+- **Gate:** `references.py` (no dangling or unused entries) + `plagiarism.py` +
+  full `run_all`.
+- **Provenance:** `Generated-by: <model-id>` trailer on the commits; each
+  paragraph's claim-id comment ties prose back to dossier items, whose own
+  `generator` field names their proposer.

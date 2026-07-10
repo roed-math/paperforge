@@ -98,6 +98,27 @@ audit. Re-running any skill or validator is idempotent; skills consume their inp
 Stages are not a strict pipeline: because inputs move, you re-enter at any stage.
 Validators are the invariant that must hold before a build is shippable.
 
+## Swapping the generative agent
+
+Skills are harness-neutral instructions; nothing in the deterministic layer
+knows or cares which model executes them. Each SKILL.md ends with a
+**Contract** block — what the step reads, what it writes, the validator that
+gates it, and the provenance stamp it must leave. That block is the whole
+interface: any agent (Claude Code, a GPT/Codex harness, a human) that honors
+it is a valid executor, because acceptance is enforced downstream —
+deterministic validators plus author review — never by trusting the generator.
+
+Provenance conventions:
+
+- **Proposal artifacts** (JSON reviewed in the dashboard): each proposed item
+  carries `"generator": "<model-id>"`; re-runs never modify decision fields
+  (`status`, `author_note`) on existing items. The review UI displays the stamp.
+- **Direct source edits:** one change per commit, with a
+  `Generated-by: <model-id>` trailer.
+
+A `paperforge run <skill> --agent <cli>` driver is deliberate future work — to
+be added the first time a second model is actually used, not before.
+
 ## Repo relationship
 
 The tool provides *behavior* (skills), *checks* (validators), and *scaffolding*

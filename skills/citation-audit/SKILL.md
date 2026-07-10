@@ -39,3 +39,15 @@ directive when placement/wording needs the author. Never silently edit.
 The bar is "what a careful referee flags", not "cite everything": a paper on
 G_Q2 does not cite a textbook for Sylow's theorem. When unsure, prefer
 `needs-citation` with a note — the author reviews the decisions file.
+
+## Contract
+
+- **Reads:** the assembled document; Lean docstring citations; the existing
+  `references/citation-needs.json` (incremental — reviewed decisions are
+  immutable).
+- **Writes:** new decision items in `citation-needs.json`; fixes as insertions
+  or directives (never silent edits).
+- **Gate:** `run_all` references checks; the author reviews decisions in the
+  dashboard.
+- **Provenance:** every proposed item carries `"generator": "<model-id>"`;
+  re-runs never modify `status`/`author_note` on existing items.

@@ -235,7 +235,9 @@ def load_notation_wraps(map_path: Path, disambig_path: Path | None = None) -> No
     wraps.sort(key=lambda t: -t[3])
     NOTATION_WRAPS.extend((k, p, s) for k, p, s, _ in wraps)
     if disambig_path and disambig_path.exists():
-        DISAMBIG.update(json.load(open(disambig_path)))
+        # underscore keys are file metadata (_generator, _comment), not letters
+        DISAMBIG.update({k: v for k, v in json.load(open(disambig_path)).items()
+                         if not k.startswith("_")})
 
 
 def convert_math(s: str) -> str:

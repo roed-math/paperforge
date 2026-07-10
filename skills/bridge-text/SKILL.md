@@ -23,3 +23,10 @@ transitions.
 - Never assert a mathematical connection the author has not made; if a bridge
   requires a claim, leave a `<!-- @forge: needs author confirmation -->` marker
   instead of inventing it.
+
+## Contract
+
+- **Reads:** the assembled source; `style.corpus` + `style.advice` (paper.toml).
+- **Writes:** transition prose in `source/` — one commit per insertion point.
+- **Gate:** `run_all` — in particular `plagiarism.py` over the new prose.
+- **Provenance:** `Generated-by: <model-id>` trailer on every commit.
