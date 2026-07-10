@@ -135,5 +135,56 @@
     });
   }
 
-  ready(function () { buildSlider(); afterMathJax(wireNotation); });
+  // (3) Proof-local details tiers: when an open proof knowl contains
+  //     higher-detail blocks, a button after its summary steps through the
+  //     levels locally (independent of the global slider).
+  function wireProofDetails() {
+    var proofs = Array.prototype.slice.call(
+      document.querySelectorAll("details.hiddenproof"));
+    proofs.forEach(function (proof) {
+      var tiers = Array.prototype.slice.call(
+        proof.querySelectorAll('details[class*="detail-level-"]'));
+      if (!tiers.length) return;
+      var levels = [];
+      tiers.forEach(function (d) {
+        var l = levelOf(d);
+        if (levels.indexOf(l) < 0) levels.push(l);
+      });
+      levels.sort(function (a, b) { return a - b; });
+      var summary = proof.querySelector("summary");
+      if (!summary) return;
+      var btn = document.createElement("button");
+      btn.className = "detail-next-btn";
+      summary.insertAdjacentElement("afterend", btn);
+      var cur = 0;
+      function nextLevel() {
+        for (var i = 0; i < levels.length; i++)
+          if (levels[i] > cur) return levels[i];
+        return null;
+      }
+      function label() {
+        btn.textContent = nextLevel() ? "▸ details" : "▾ hide details";
+      }
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var nxt = nextLevel();
+        if (nxt) {
+          cur = nxt;
+          tiers.forEach(function (d) { if (levelOf(d) <= cur) d.open = true; });
+        } else {
+          cur = 0;
+          tiers.forEach(function (d) { d.open = false; });
+        }
+        label();
+      });
+      label();
+    });
+  }
+
+  ready(function () {
+    buildSlider();
+    wireProofDetails();
+    afterMathJax(wireNotation);
+  });
 })();

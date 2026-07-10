@@ -44,6 +44,15 @@
   .notation-popup { background: #22262b; color: #e8e8e8; border-color: rgba(255,255,255,.18); }
 }
 
+/* ============ Formalization badges (<lean> as child of a theorem block) ============ */
+article.theorem-like > a.lean-link, section > a.lean-link {
+  display: inline-block; font-size: .78rem; font-family: ui-monospace, monospace;
+  padding: .1rem .5rem; margin: .2rem .3rem .2rem 0;
+  border: 1px solid rgba(25,100,60,.4); border-radius: 999px;
+  background: rgba(40,160,90,.08); text-decoration: none;
+}
+article.theorem-like > a.lean-link::before { content: "⚙ "; }
+
 /* Far notation (notation_far.py): NO rest-state affordance. On hover the
    cursor is the help question-mark; the definition popup appears after a
    delay (FAR_DELAY_MS in detail-ui.js) with a see-in-context link. */
@@ -55,3 +64,12 @@
   padding-top: .3rem;
 }
 .notation-popup .notation-ctx-link:hover { text-decoration: underline; }
+
+/* proof-local details tier button (quiet, matching the proof knowl look) */
+.detail-next-btn {
+  display: block; margin: .4em 0 .2em; padding: .15em .7em;
+  background: #f5f5f5; border: none; border-radius: 3px;
+  font-family: inherit; font-style: italic; font-size: .95em;
+  color: #333; cursor: pointer;
+}
+.detail-next-btn:hover { background: #ececec; }

@@ -457,6 +457,7 @@ class Ctx:
     refs: RefMap
     num: Numbering
     lean_map: dict = field(default_factory=dict)  # tag -> [{"decl": ...}, ...]
+    lean_ann: dict = field(default_factory=dict)  # decl -> brief badge label
     out: list[str] = field(default_factory=list)
     indent: int = 0
 
@@ -604,9 +605,17 @@ def convert_theoremlike(env: str, body: str, ctx: Ctx) -> None:
     ctx.indent -= 1
     ctx.emit("</statement>")
     # formalization badge(s): custom <lean> children, rendered by custom XSL
-    # (block badge in HTML, dropped in the arXiv/latex conversion)
-    for rec in ctx.lean_map.get(tag, [])[:3]:
-        ctx.emit(f'<lean ref="{rec["decl"]}">{rec["decl"]}</lean>')
+    # (block badge in HTML, dropped in the arXiv/latex conversion). Badge
+    # text is "Lean", with a brief parenthetical to disambiguate when one
+    # statement has several declarations; the full name stays in the tooltip.
+    decls = ctx.lean_map.get(tag, [])
+    for rec in decls:
+        if len(decls) == 1:
+            text = "Lean"
+        else:
+            ann = ctx.lean_ann.get(rec["decl"]) or rec["decl"].rsplit(".", 1)[-1]
+            text = f"Lean ({ann})"
+        ctx.emit(f'<lean ref="{rec["decl"]}">{text}</lean>')
     ctx.indent -= 1
     ctx.emit(f"</{PTX_THM[env]}>")
     set_block(_CURRENT_DIVISION[0])     # back to division grain
@@ -819,6 +828,9 @@ def main() -> int:
     ap.add_argument("--out", type=Path, help="PreTeXt output dir (source/)")
     ap.add_argument("--numbering", type=Path, help="numbering JSON output")
     ap.add_argument("--snapshot", default="current", help="snapshot name for JSON metadata")
+    ap.add_argument("--lean-annotations", type=Path,
+                    help="optional {annotations: {decl: brief label}} sidecar "
+                         "for disambiguating badges on multi-decl statements")
     ap.add_argument("--lean-map", type=Path,
                     help="tag -> decl-links JSON (from lean_declmap.py); "
                          "emits <lean> badges on matching statements")
@@ -860,6 +872,9 @@ def main() -> int:
     refs = RefMap(labels)
     num = Numbering()
     lean_map = json.load(open(args.lean_map)) if args.lean_map else {}
+    lean_ann = (json.load(open(args.lean_annotations)).get("annotations", {})
+                if args.lean_annotations and args.lean_annotations.exists()
+                else {})
 
     preamble = tex.split(r"\begin{document}")[0]
     title, author = extract_title_author(preamble)
@@ -908,7 +923,7 @@ def main() -> int:
         tag = tagify(s["label"]) if s["label"] else "sec-" + slugify(s["title"])
         num.record(tag, el, s["label"], disp)
         set_division(tag)               # scoped notation wrapping
-        ctx = Ctx(refs, num, lean_map)
+        ctx = Ctx(refs, num, lean_map, lean_ann)
         ctx.emit(f'<{el} xml:id="{tag}">')
         ctx.indent += 1
         ctx.emit(f"<title>{convert_inline(s['title'], refs)}</title>")
@@ -1005,7 +1020,8 @@ def load_insertions(d: Path) -> None:
     import re as _re
     for f in sorted(d.glob("*.ptx")):
         text = f.read_text()
-        m = _re.search(r"<!--\s*anchor:\s*(\S+)\s+position:\s*(\w+)\s*-->", text)
+        m = _re.search(r"<!--\s*anchor:\s*(\S+)\s+position:\s*(\w[\w-]*)\s*-->",
+                       text)
         if not m:
             warn(f"insertion {f.name}: missing anchor header — skipped")
             continue
@@ -1049,6 +1065,19 @@ def apply_insertions(secs) -> int:
                     j = (tclose + len("</title>")) if near else mm.end()
                     text = text[:j] + "\n" + body + text[j:]
                     n += 1
+                elif pos == "proof-append":
+                    # inside the anchor element's LAST <proof>, at its end —
+                    # for detail-tier elaborations of that proof
+                    import re as _re
+                    mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker), text)
+                    if not mm:
+                        continue
+                    close = f"</{mm.group(1)}>"
+                    i = text.find(close, mm.end())
+                    p = text.rfind("</proof>", mm.end(), i) if i >= 0 else -1
+                    if p >= 0:
+                        text = text[:p] + body + "\n" + text[p:]
+                        n += 1
                 else:  # append (inside, at end)
                     import re as _re
                     mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker), text)

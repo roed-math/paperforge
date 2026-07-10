@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="PaperForge glyph">
+  <title>PaperForge</title>
+  <rect x="78" y="32" width="6" height="6" fill="#EA580C"/>
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M 9 43.5 L 25 41 L 91 41 L 91 55 L 25 55 L 9 47.5 Z
+    M 78 45 L 84 45 L 84 51 L 78 51 Z"/>
+  <path fill="currentColor" d="M 43 54 L 63 54 L 72 72 L 34 72 Z"/>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="162" height="20" viewBox="0 0 162 20" role="img" aria-label="built with PaperForge">
+  <title>built with PaperForge</title>
+  <clipPath id="r"><rect width="162" height="20" rx="3" fill="#fff"/></clipPath>
+  <g clip-path="url(#r)">
+    <rect width="84" height="20" fill="#1F1B16"/>
+    <rect x="84" width="78" height="20" fill="#EA580C"/>
+    <g transform="translate(5,2) scale(0.1585)" fill="#ffffff">
+      <rect x="78" y="32" width="6" height="6"/>
+      <path fill-rule="evenodd" d="M 9 43.5 L 25 41 L 91 41 L 91 55 L 25 55 L 9 47.5 Z M 78 45 L 84 45 L 84 51 L 78 51 Z"/>
+      <path d="M 43 54 L 63 54 L 72 72 L 34 72 Z"/>
+    </g>
+    <text x="23" y="14" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11" fill="#ffffff" textLength="55" lengthAdjust="spacingAndGlyphs">built with</text>
+    <text x="90" y="14" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11" font-weight="600" fill="#ffffff" textLength="66" lengthAdjust="spacingAndGlyphs">PaperForge</text>
+  </g>
+</svg>

@@ -1,6 +1,13 @@
 # paperforge
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/paperforge-mark-dark.svg">
+  <img src="assets/paperforge-mark.svg" alt="PaperForge: a dog-eared page being forged on an anvil" width="110" align="right">
+</picture>
+
 *(working name — rename freely)*
+
+[![built with PaperForge](assets/paperforge-badge.svg)](https://github.com/roed-math/paperforge)
 
 A Claude Code framework for turning an **AI-written math paper** plus a **Lean
 formalization** into two synchronized outputs:

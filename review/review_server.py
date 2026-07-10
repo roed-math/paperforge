@@ -591,8 +591,112 @@ class Known:
         json.dump(data, open(self.path, "w"), indent=1)
 
 
+class Marks:
+    """Author intents captured by clicking in the paper (paper-marks.js).
+
+    Each mark is a worklist item for a specific pass: notation-link requests
+    feed the notation map, reference marks feed citation-audit, detail marks
+    feed the detail-retier passes. A pass that acts on a mark flips it to
+    'applied' (with a note saying what was done)."""
+    name = "marks"
+    label = "Review marks"
+    path = ROOT / "directives" / "marks.json"
+    blurb = ("Click-registered author intents from reading the paper "
+             "(select a pen mode in the margin palette, then click). Open "
+             "marks are the worklist; passes flip them to applied.")
+    choices = ["open", "applied", "dismissed"]
+    choice_help = {
+        "open": "Registered and waiting for the corresponding pass.",
+        "applied": "The requested change has been made (see the note).",
+        "dismissed": "Withdrawn — no change wanted after all.",
+    }
+    MODE_HELP = {
+        "notation": "This term/symbol should get a ? hover definition "
+                    "(feeds notation/notation-map.json curation).",
+        "reference": "A citation should be added here (feeds the "
+                     "citation-audit worklist).",
+        "detail-high": "Too much detail here — move prose down to a higher "
+                       "detail level (collapsed by default).",
+        "detail-low": "Too little detail here — add more explanation "
+                      "(at a higher detail level or inline).",
+    }
+
+    def _load(self):
+        if self.path.exists():
+            return json.load(open(self.path))
+        return {"_comment": "Click-registered review marks (paper-marks.js; "
+                            "review dashboard 'Review marks' tab). Statuses: "
+                            "open | applied | dismissed.",
+                "marks": {}}
+
+    def add(self, rec: dict) -> str:
+        data = self._load()
+        mid = f"mk-{len(data['marks']) + 1:03d}"
+        while mid in data["marks"]:
+            mid = f"mk-{int(mid[3:]) + 1:03d}"
+        data["marks"][mid] = {
+            "mode": rec.get("mode", "?"),
+            "text": (rec.get("text") or "")[:200],
+            "context": (rec.get("context") or "")[:300],
+            "anchor": rec.get("anchor", ""),
+            "block": rec.get("block", ""),
+            "page": rec.get("page", ""),
+            "created": __import__("datetime").date.today().isoformat(),
+            "status": "open",
+            "author_note": "",
+            "generator": "roed",
+        }
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        json.dump(data, open(self.path, "w"), indent=1)
+        return mid
+
+    def open_marks(self, page: str | None = None) -> list[dict]:
+        data = self._load()
+        return [dict(id=k, **v) for k, v in data["marks"].items()
+                if v["status"] == "open" and (not page or v["page"] == page)]
+
+    def items(self):
+        data = self._load()
+        out = []
+        for mid, m in data["marks"].items():
+            fields = [
+                dict(label=f"mode: {m['mode']}", value="",
+                     help=self.MODE_HELP.get(m["mode"], "Review mark.")),
+                dict(label="context", value=m.get("context", ""),
+                     help="The surrounding sentence at the click site."),
+                dict(label="where", value=m.get("anchor", ""),
+                     help="The nearest anchored element at the click site."),
+            ]
+            gf = gen_field(m, data)
+            if gf:
+                fields.append(gf)
+            block = m.get("block") or m.get("anchor")
+            out.append(dict(
+                id=mid, title=f"{m['mode']}: {m.get('text') or '(no text)'}",
+                fields=fields,
+                text=m.get("text"),
+                text_help="The clicked term/selection. Edit if the click "
+                          "captured the wrong span.",
+                links=links_for([block] if block else []),
+                status=m["status"], choices=self.choices,
+                choice_help=self.choice_help,
+                note=m.get("author_note", "")))
+        return out
+
+    def decide(self, iid, status, note, text):
+        data = self._load()
+        m = data["marks"][iid]
+        if status:
+            m["status"] = status
+        if note is not None:
+            m["author_note"] = note
+        if text is not None:
+            m["text"] = text
+        json.dump(data, open(self.path, "w"), indent=1)
+
+
 ADAPTERS = {a.name: a() for a in (Novelty, Followups, Disambig,
-                                  CitationNeeds, Known)}
+                                  CitationNeeds, Known, Marks)}
 
 
 # ---------------------------------------------------------------- server
@@ -686,6 +790,18 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if url.path == "/review-paper-marks.js":
+            body = (HERE / "paper-marks.js").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if url.path == "/api/marks":
+            q = parse_qs(url.query)
+            page = q.get("page", [None])[0]
+            return self._json(ADAPTERS["marks"].open_marks(page))
         if url.path.startswith("/mjx-font/") and MJX_FONT_LOCAL.exists():
             rest = self.path[len("/mjx-font/"):]
             # the bundle appends @version to the package segment; the
@@ -721,7 +837,8 @@ class Handler(SimpleHTTPRequestHandler):
                 html = localize_cdn(target.read_text(errors="ignore")).replace(
                     "</body>",
                     '<script src="/review-paper-tags.js"></script>'
-                    '<script src="/review-paper-margin.js"></script></body>', 1)
+                    '<script src="/review-paper-margin.js"></script>'
+                    '<script src="/review-paper-marks.js"></script></body>', 1)
                 body = html.encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -733,10 +850,13 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path != "/api/decide":
-            return self._json({"error": "unknown endpoint"}, 404)
         n = int(self.headers.get("Content-Length", 0))
         req = json.loads(self.rfile.read(n))
+        if self.path == "/api/mark":
+            mid = ADAPTERS["marks"].add(req)
+            return self._json({"ok": True, "id": mid})
+        if self.path != "/api/decide":
+            return self._json({"error": "unknown endpoint"}, 404)
         a = ADAPTERS.get(req.get("artifact"))
         if not a:
             return self._json({"error": "unknown artifact"}, 400)
