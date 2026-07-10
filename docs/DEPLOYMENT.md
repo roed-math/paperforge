@@ -49,6 +49,22 @@ stabilizes.
   from the existing crosswalk + ledger data. A leanblueprint-style dependency
   graph page can be derived from the same ledger.
 
+**Built 2026-07-10 (gq2):** the Verso blueprint uses the official
+`leanprover/verso-blueprint` tooling and lives in the **instance repo** as a
+`blueprint/` lake project that requires the formalization by path from its
+`formalizations/<name>` git submodule. Rationale: isolates the Verso
+dependency stack from the (active, swarm-driven) formalization workspace,
+makes blueprint builds reproducible against the exact submodule pin the
+paper ships with, and scales to multiple formalizations in `formalizations/`
+(an independent GPT formalization is expected). The blueprint toolchain must
+match the formalization's exactly; `VersoBlueprint` is required at the
+matching release branch (`@"v4.31.0"` for a `v4.31.0-rc2` project).
+`blueprint/scripts/ci-pages.sh` renders to `blueprint/_out/site/html-multi/`.
+Node status (sorry-free vs in-progress) is computed from the Lean
+declarations directly. Seed chapter: the presentation theorem + marked
+Demushkin normalization; full authoring via the /blueprint skill once the
+formalization stabilizes.
+
 ## Provenance: the AI-development record
 
 Three views over the assistant chat logs. The unit of organization is the
@@ -82,6 +98,25 @@ session transcripts and the Lean swarm's ticket/lane records.
 
 ## Publishing mechanics
 
-A local `deploy.sh` first (build → assemble the site tree → push the Pages
-branch); promote to a GitHub Action once the pieces settle. The PreTeXt
-publication file and asset URLs must respect the project-page base path.
+**Decision (2026-07-10): direct push to a separate public site repo, not
+PRs.** The source repos stay private; a public repo (e.g.
+`roed-math/gq2-site`) holds only the assembled site and GitHub Pages serves
+its `main` branch. Deploys are single commits recording the source SHAs
+(paper repo + formalization submodule) for provenance. PRs against the site
+repo were considered and rejected: a diff of generated HTML is unreviewable,
+so a PR adds ceremony without review value — the real review happens
+upstream (validators + the author dashboards), and running `deploy.sh` *is*
+the publish decision. If a co-author sign-off gate is ever wanted, the same
+script can open a PR instead of pushing; revisit then.
+
+Scripts (templates here; stamped per instance):
+
+- `scripts/build-site.sh` — assemble `output/site/` from the landing page
+  (`web-assets/site/index.html`), the PreTeXt web build (`/paper/`), the
+  arXiv PDF (`/paper.pdf`), and the blueprint render (`/blueprint/`).
+- `scripts/deploy.sh [--dry-run]` — rsync the tree into a shallow clone of
+  the site repo, commit with source SHAs, push. One-time GitHub setup:
+  create the public repo; Settings → Pages → deploy from `main`, root.
+
+Promote to a GitHub Action once the pieces settle. The PreTeXt publication
+file and asset URLs must respect the project-page base path.

@@ -23,7 +23,11 @@ Bootstraps an instance repo from the tool's templates.
    - copy `templates/build-web.sh` -> `scripts/build-web.sh` and fill
      `@@PAPERFORGE_ROOT@@`, `@@AI_DRAFT@@`, `@@LEAN_ROOT@@`,
      `@@MATHBB_LETTERS@@`; create `notation/`, `content/insertions/`,
-     `references/extra-biblio.xml` skeletons.
+     `references/extra-biblio.xml` skeletons;
+   - (when deploying) copy `templates/build-site.sh` + `templates/deploy.sh`
+     -> `scripts/` and fill `@@PDF_PATH@@`, `@@SITE_REPO@@`,
+     `@@LEAN_SUBMODULE@@`; seed a `web-assets/site/index.html` landing page
+     (see docs/DEPLOYMENT.md).
 5. Print the next commands: drop the AI draft + style corpus + reference PDFs, then
    run `ingest-draft`.
 
