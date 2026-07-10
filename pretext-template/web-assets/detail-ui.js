@@ -1,6 +1,9 @@
-/* PreTeXt spike: client-side UI layer.
-   (1) A global detail slider that opens/closes born-hidden knowls by level.
-   (2) Notation hovers that reveal a definition without a knowl underline. */
+/* PreTeXt UI layer.
+   (1) A global detail slider that reveals detail tiers by level.
+   (2) Notation hovers that reveal a definition without a knowl underline
+       (event-delegated, so lazily-typeset math is covered).
+   (3) Proof-local "details" button that expands the proof text in place.
+   (4) Contents sidebar hidden on page load. */
 (function () {
   "use strict";
 
@@ -22,30 +25,24 @@
     else document.addEventListener("DOMContentLoaded", fn);
   }
 
-  // Notation lives inside math, which MathJax typesets asynchronously AFTER
-  // DOMContentLoaded. Wait for MathJax's startup promise before wiring, else
-  // the ptxnotn- nodes do not exist yet.
-  function afterMathJax(fn) {
-    var tries = 0;
-    (function wait() {
-      if (window.MathJax && MathJax.startup && MathJax.startup.promise) {
-        MathJax.startup.promise.then(fn).catch(fn);
-      } else if (tries++ < 200) {
-        setTimeout(wait, 50);
-      } else {
-        fn(); // no MathJax on this page; run anyway (no-op if nothing to wire)
-      }
-    })();
-  }
-
   function levelOf(el) {
     var m = /\bdetail-level-(\d+)\b/.exec(el.className);
     return m ? +m[1] : 0;
   }
 
+  // Reveal machinery: tier elements are either born-hidden <details> knowls
+  // (opened directly) or inline blocks like <p detail-level="2"> (revealed by
+  // a `show-dl-N` class on a container — body for the global slider, the
+  // proof element for the local button; CSS does the rest).
+  function setTierClasses(container, level) {
+    for (var l = 2; l <= 9; l++) {
+      container.classList.toggle("show-dl-" + l, l <= level);
+    }
+  }
+
   function buildSlider() {
     var items = Array.prototype.slice.call(
-      document.querySelectorAll('details[class*="detail-level-"]'));
+      document.querySelectorAll('[class*="detail-level-"]'));
     if (!items.length) return;
     var max = items.reduce(function (a, d) { return Math.max(a, levelOf(d)); }, 1);
 
@@ -64,23 +61,79 @@
     function apply() {
       var t = +range.value;
       out.textContent = t + "/" + max;
-      items.forEach(function (d) { d.open = levelOf(d) <= t; });
+      items.forEach(function (d) {
+        if (d.tagName === "DETAILS") d.open = levelOf(d) <= t;
+      });
+      setTierClasses(document.body, t);
     }
     range.addEventListener("input", apply);
     apply();
   }
 
-  function wireNotation() {
-    var nodes = Array.prototype.slice.call(
-      document.querySelectorAll('[class*="ptxnotn-"]'));
-    if (!nodes.length) return;
+  // Proof-local details: a small button on the "Proof" line (visible only
+  // while the proof is open) steps the proof's own tiers up and back down —
+  // the proof text expands in place.
+  function wireProofDetails() {
+    var proofs = Array.prototype.slice.call(
+      document.querySelectorAll("details.hiddenproof"));
+    proofs.forEach(function (proof) {
+      var tiers = Array.prototype.slice.call(
+        proof.querySelectorAll('[class*="detail-level-"]'));
+      if (!tiers.length) return;
+      var levels = [];
+      tiers.forEach(function (d) {
+        var l = levelOf(d);
+        if (levels.indexOf(l) < 0) levels.push(l);
+      });
+      levels.sort(function (a, b) { return a - b; });
+      var summary = proof.querySelector("summary");
+      if (!summary) return;
+      var btn = document.createElement("button");
+      btn.className = "detail-next-btn";
+      summary.appendChild(btn);
+      var cur = 0;
+      function nextLevel() {
+        for (var i = 0; i < levels.length; i++)
+          if (levels[i] > cur) return levels[i];
+        return null;
+      }
+      function label() {
+        btn.textContent = nextLevel() ? "▸ details" : "▾ less";
+      }
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();      // do not toggle the enclosing summary
+        e.stopPropagation();
+        var nxt = nextLevel();
+        cur = nxt !== null ? nxt : 0;
+        setTierClasses(proof, cur);
+        tiers.forEach(function (d) {
+          if (d.tagName === "DETAILS") d.open = levelOf(d) <= cur;
+        });
+        label();
+      });
+      label();
+    });
+  }
 
+  // Contents hidden on page load (the theme's toggle still works).
+  function hideTocOnLoad() {
+    var sb = document.getElementById("ptx-sidebar");
+    if (!sb) return;
+    sb.classList.add("hidden");
+    sb.classList.remove("visible");
+    var btn = document.getElementById("ptx-toc-toggle");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+
+  // Notation hovers, event-delegated: works regardless of when MathJax
+  // typesets a given expression (required for lazy typesetting, where math
+  // renders as it scrolls into view).
+  function wireNotation() {
     var pop = document.createElement("div");
     pop.className = "notation-popup";
     document.body.appendChild(pop);
-    var hideTimer, showTimer;
+    var hideTimer, showTimer, hoverEl = null;
 
-    // Moving the mouse INTO the popup keeps it open (it contains a link).
     pop.addEventListener("mouseenter", function () { clearTimeout(hideTimer); });
     pop.addEventListener("mouseleave", scheduleHide);
 
@@ -120,71 +173,29 @@
       clearTimeout(showTimer);
       hideTimer = setTimeout(function () { pop.classList.remove("show"); }, 180);
     }
-    nodes.forEach(function (el) {
-      var delay = isFar(el) ? FAR_DELAY_MS : NEAR_DELAY_MS;
-      el.setAttribute("tabindex", "0");        // keyboard-accessible
-      el.addEventListener("mouseenter", function () {
+
+    document.addEventListener("mouseover", function (e) {
+      var el = e.target.closest
+        ? e.target.closest('[class*="ptxnotn-"]') : null;
+      if (el === hoverEl) return;
+      if (el) {
+        hoverEl = el;
         clearTimeout(hideTimer);
         clearTimeout(showTimer);
+        var delay = isFar(el) ? FAR_DELAY_MS : NEAR_DELAY_MS;
         showTimer = setTimeout(function () { show(el); }, delay);
-      });
-      el.addEventListener("mouseleave", scheduleHide);
-      // keyboard focus: show promptly regardless of far/near (a11y)
-      el.addEventListener("focus", function () { show(el); });
-      el.addEventListener("blur", scheduleHide);
-    });
-  }
-
-  // (3) Proof-local details tiers: when an open proof knowl contains
-  //     higher-detail blocks, a button after its summary steps through the
-  //     levels locally (independent of the global slider).
-  function wireProofDetails() {
-    var proofs = Array.prototype.slice.call(
-      document.querySelectorAll("details.hiddenproof"));
-    proofs.forEach(function (proof) {
-      var tiers = Array.prototype.slice.call(
-        proof.querySelectorAll('details[class*="detail-level-"]'));
-      if (!tiers.length) return;
-      var levels = [];
-      tiers.forEach(function (d) {
-        var l = levelOf(d);
-        if (levels.indexOf(l) < 0) levels.push(l);
-      });
-      levels.sort(function (a, b) { return a - b; });
-      var summary = proof.querySelector("summary");
-      if (!summary) return;
-      var btn = document.createElement("button");
-      btn.className = "detail-next-btn";
-      summary.insertAdjacentElement("afterend", btn);
-      var cur = 0;
-      function nextLevel() {
-        for (var i = 0; i < levels.length; i++)
-          if (levels[i] > cur) return levels[i];
-        return null;
+      } else if (hoverEl && !(e.target.closest &&
+                              e.target.closest(".notation-popup"))) {
+        hoverEl = null;
+        scheduleHide();
       }
-      function label() {
-        btn.textContent = nextLevel() ? "▸ details" : "▾ hide details";
-      }
-      btn.addEventListener("click", function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var nxt = nextLevel();
-        if (nxt) {
-          cur = nxt;
-          tiers.forEach(function (d) { if (levelOf(d) <= cur) d.open = true; });
-        } else {
-          cur = 0;
-          tiers.forEach(function (d) { d.open = false; });
-        }
-        label();
-      });
-      label();
     });
   }
 
   ready(function () {
+    hideTocOnLoad();
     buildSlider();
     wireProofDetails();
-    afterMathJax(wireNotation);
+    wireNotation();
   });
 })();

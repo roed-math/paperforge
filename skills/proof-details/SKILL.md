@@ -28,13 +28,15 @@ reader can step into a proof without the paper growing.
 - Locate the Lean proof via the crosswalk (`crosswalk/lean-decl-map.json` →
   decl, file, line) and read it before writing anything.
 - Output = one insertion fragment per proof in `content/insertions/`
-  (header: `<!-- anchor: <tag> position: proof-append -->`), containing
-  `<remark detail-level="2" component="details" xml:id="det-<tag>">
-  <title>More detail</title>…`. Merged at ingest by `tex2ptx --insertions`.
-  The `component` attribute is what excludes the block from the PDF (the
+  (header: `<!-- anchor: <tag> position: proof-append -->`), containing bare
+  `<p detail-level="2" component="details">…</p>` paragraphs — no remark
+  wrapper, no title, no number: the proof text expands in place. Lead the
+  paragraph so it reads as a continuation ("In more detail: …"). Merged at
+  ingest by `tex2ptx --insertions`.
+  The `component` attribute excludes the paragraph from the PDF (the
   arxiv/print publication files use `<version include=""/>`); the
   `detail-level` attribute is what the HTML slider and the proof-local
-  button key on. Both are required.
+  "▸ details" button key on. Both are required.
 - Pilot exemplar: `40-proof-details-pilot.ptx` in the gq2 instance
   (lem-reconstruction).
 

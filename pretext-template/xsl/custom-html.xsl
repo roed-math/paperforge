@@ -39,4 +39,14 @@
     <xsl:value-of select="@detail-level"/>
   </xsl:template>
 
+  <!-- (2b) Paragraph tiers: core's <p> body hardcodes class="para" and never
+       consults body-css-class, but it does call add-lude-parent-class inside
+       the class attribute — piggyback on that so <p detail-level="N"> (the
+       woven-in proof-detail paragraphs) gets the tier class too. -->
+  <xsl:template match="p[@detail-level]" mode="add-lude-parent-class">
+    <xsl:apply-imports/>
+    <xsl:text> detail-level-</xsl:text>
+    <xsl:value-of select="@detail-level"/>
+  </xsl:template>
+
 </xsl:stylesheet>

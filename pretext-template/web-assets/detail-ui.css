@@ -73,3 +73,14 @@ article.theorem-like > a.lean-link::before { content: "⚙ "; }
   color: #333; cursor: pointer;
 }
 .detail-next-btn:hover { background: #ececec; }
+
+/* inline detail tiers (e.g. <p detail-level="2">): hidden until a container
+   (body via the slider, or a proof via its details button) enables them */
+.para.detail-level-2, .para.detail-level-3, .para.detail-level-4 { display: none; }
+.show-dl-2 .para.detail-level-2, .show-dl-3 .para.detail-level-3,
+.show-dl-4 .para.detail-level-4 { display: block; }
+
+/* the details button sits on the Proof line, only while the proof is open */
+.detail-next-btn { display: inline-block; margin: 0 0 0 .9em;
+  padding: .05em .55em; vertical-align: baseline; }
+details.hiddenproof:not([open]) .detail-next-btn { display: none; }
