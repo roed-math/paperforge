@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inject the paper's LaTeX macros into MathJax's config (tex.macros).
+"""Inject the lazy-typesetting config MathJax needs into the startup module.
 
 With lazy typesetting (ui/lazy) the hidden #latex-macros div is never
 processed — IntersectionObserver does not fire for display:none elements —
@@ -7,7 +7,17 @@ so in-document \\newcommand definitions are never seen and every use renders
 as a red 'undefined control sequence'. The fix: parse the docinfo macros
 from source/main.ptx and write them into the emitted MathJax startup
 module's tex.macros, where they exist before any expression is typeset
-(in any order). Idempotent; run after `pretext build web`.
+(in any order).
+
+Second lazy repair: math inside content injected after page load (fetched
+xref knowls, notation/section/Lean panels, margin decision panels) was
+"typeset" into permanent mjx-lazy placeholders — blank math, and no
+\\class{ptxnotn-*} wraps for the notation links. ui/lazy's designed escape
+hatch is options.lazyAlwaysTypeset: math inside matching containers always
+typesets eagerly. Born-hidden proofs are deliberately NOT listed — they are
+part of the initial document and the observer handles them.
+
+Idempotent; run after `pretext build web`.
 """
 from __future__ import annotations
 
@@ -47,6 +57,10 @@ def parse_macros(block: str) -> dict:
     return out
 
 
+LAZY_ALWAYS = ["div.knowl__content[id^=knowl-uid-]", ".lean-knowl",
+               ".section-knowl", ".pfm-panel", ".notation-popup"]
+
+
 def inject(target: Path, macros: dict) -> bool:
     text = target.read_text()
     line = '    "macros": ' + json.dumps(macros) + ","
@@ -54,6 +68,11 @@ def inject(target: Path, macros: dict) -> bool:
     cleaned = re.sub(r'\n\s*"macros": \{.*?\},(?=\n)', "", text, count=1)
     new, n = re.subn(r'("tex": \{)', r"\1\n" + line.replace("\\", "\\\\"),
                      cleaned, count=1)
+    if not n:
+        return False
+    aline = '    "lazyAlwaysTypeset": ' + json.dumps(LAZY_ALWAYS) + ","
+    new = re.sub(r'\n\s*"lazyAlwaysTypeset": \[.*?\],(?=\n)', "", new, count=1)
+    new, n = re.subn(r'("options": \{)', r"\1\n" + aline, new, count=1)
     if not n:
         return False
     target.write_text(new)
