@@ -616,16 +616,18 @@ def convert_theoremlike(env: str, body: str, ctx: Ctx) -> None:
     # (block badge in HTML, dropped in the arXiv/latex conversion). Badge
     # text is "Lean", with a brief parenthetical to disambiguate when one
     # statement has several declarations; the full name stays in the tooltip.
-    decls = ctx.lean_map.get(tag, [])
+    # private decls have no doc-gen4 page and are internal to the proof
+    # development — no badge at all (author decision 2026-07-11). The XSL
+    # still renders any <lean nodocs=".."> unlinked, as the robust default
+    # for other sources of doc gaps.
+    decls = [r for r in ctx.lean_map.get(tag, []) if not r.get("private")]
     for rec in decls:
         if len(decls) == 1:
             text = "Lean"
         else:
             ann = ctx.lean_ann.get(rec["decl"]) or rec["decl"].rsplit(".", 1)[-1]
             text = f"Lean ({ann})"
-        # private decls have no doc-gen4 page: render the badge unlinked
-        nodocs = ' nodocs="private"' if rec.get("private") else ""
-        ctx.emit(f'<lean ref="{rec["decl"]}"{nodocs}>{text}</lean>')
+        ctx.emit(f'<lean ref="{rec["decl"]}">{text}</lean>')
     ctx.indent -= 1
     ctx.emit(f"</{PTX_THM[env]}>")
     set_block(_CURRENT_DIVISION[0])     # back to division grain
