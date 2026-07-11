@@ -126,6 +126,7 @@ class Numbering:
     thm: int = 0
     eq: int = 0
     subsec: int = 0
+    subsubsec: int = 0
     records: dict = field(default_factory=dict)
 
     def enter_section(self) -> str:
@@ -139,11 +140,17 @@ class Numbering:
             self.section = (self.section or 0) + 1
         self.thm = 0
         self.subsec = 0
+        self.subsubsec = 0
         return str(self.section)
 
     def next_subsec(self) -> str:
         self.subsec += 1
+        self.subsubsec = 0
         return f"{self.section}.{self.subsec}"
+
+    def next_subsubsec(self) -> str:
+        self.subsubsec += 1
+        return f"{self.section}.{self.subsec}.{self.subsubsec}"
 
     def next_thm(self) -> str:
         self.thm += 1
@@ -298,8 +305,9 @@ def convert_inline(s: str, refs: "RefMap") -> str:
         m = re.match(r"\\(subsubsection|paragraph)\*?\{", s[i:])
         if m and m.group(1) in ("subsubsection", "paragraph"):
             j = match_brace(s, i + m.end() - 1)
-            out.append("<alert>" + convert_inline(s[i + m.end():j], refs)
-                       + ".</alert> ")
+            head = convert_inline(s[i + m.end():j], refs).rstrip()
+            dot = "" if head.endswith((".", "!", "?")) else "."
+            out.append("<alert>" + head + dot + "</alert> ")
             i = j + 1
             continue
         m = re.match(r"\\(eqref|cref|Cref|ref|hyperref)(\[[^\]]*\])?\{([^}]*)\}", s[i:])
@@ -772,6 +780,31 @@ def reparent_proofs(lines: list[str]) -> list[str]:
 # ------------------------------------------------------------------ driver
 
 SEC_RE = re.compile(r"\\(section|subsection)\*?\{")
+SUBSUBSEC_RE = re.compile(r"\\subsubsection\*?\{")
+
+
+def split_subsubsections(content: str):
+    """Split subsection content on \\subsubsection into (head, parts).
+
+    parts is a list of {title, label, content}; it is empty when the
+    subsection has no subsubsections (the common case). Subsubsections
+    become real PreTeXt divisions only inside a subsection — at any other
+    depth the inline <alert> fallback in convert_inline still applies,
+    since PreTeXt divisions may not skip levels.
+    """
+    matches = list(SUBSUBSEC_RE.finditer(content))
+    if not matches:
+        return content, []
+    head = content[:matches[0].start()]
+    parts = []
+    for k, m in enumerate(matches):
+        tend = match_brace(content, m.end() - 1)
+        title = content[m.end():tend]
+        label, p = read_label(content, tend + 1)
+        end = matches[k + 1].start() if k + 1 < len(matches) else len(content)
+        parts.append({"title": title, "label": label,
+                      "content": content[p:end]})
+    return head, parts
 
 
 def parse_document(tex: str):
@@ -946,7 +979,30 @@ def main() -> int:
             ctx.emit(f'<subsection xml:id="{stag}">')
             ctx.indent += 1
             ctx.emit(f"<title>{convert_inline(sub['title'], refs)}</title>")
-            parse_blocks(sub["content"], ctx)
+            head, subsubs = split_subsubsections(sub["content"])
+            if not subsubs:
+                parse_blocks(sub["content"], ctx)
+            else:
+                # a division with subdivisions must hold its leading
+                # blocks in an <introduction> (structured-division rule)
+                if head.strip():
+                    ctx.emit("<introduction>")
+                    ctx.indent += 1
+                    parse_blocks(head, ctx)
+                    ctx.indent -= 1
+                    ctx.emit("</introduction>")
+                for ss in subsubs:
+                    sstag = tagify(ss["label"]) if ss["label"] else \
+                        stag + "-" + slugify(ss["title"])
+                    num.record(sstag, "subsubsection", ss["label"],
+                               num.next_subsubsec())
+                    ctx.emit(f'<subsubsection xml:id="{sstag}">')
+                    ctx.indent += 1
+                    ctx.emit(f"<title>{convert_inline(ss['title'], refs)}"
+                             "</title>")
+                    parse_blocks(ss["content"], ctx)
+                    ctx.indent -= 1
+                    ctx.emit("</subsubsection>")
             ctx.indent -= 1
             ctx.emit("</subsection>")
         ctx.indent -= 1
