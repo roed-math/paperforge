@@ -45,6 +45,11 @@
 .ptx-content h4, .ptx-content h5 {
   font-family: "Computer Modern Serif", "Latin Modern Roman", Georgia, serif;
 }
+/* division-heading ladder: the theme's subsection/subsubsection sizes
+   (1.15em) fall below theorem-like headings (1.25em); keep every division
+   heading at least lemma-sized, ordered by depth under section (1.3em) */
+.ptx-content section.subsection > .heading { font-size: 1.275em; }
+.ptx-content section.subsubsection > .heading { font-size: 1.25em; }
 
 /* -- 5 cont.: links quiet (papers are ink); keep affordance on hover -- */
 .ptx-content a.internal, .ptx-content .xref {
@@ -79,6 +84,24 @@
   background: transparent;
   box-shadow: none;
   padding: 0.2rem 0 0.1rem;
+}
+/* nested knowls: a knowl surface opened inside another knowl surface is
+   grey-on-grey without a boundary. Step the inner one to white with a
+   hairline so it reads as a layer. Injected xref knowls are the
+   div.knowl__content[id^=knowl-uid-] elements (knowl.js); born-hidden
+   details and .lean-knowl doc panels are the other two surfaces. */
+.ptx-content details.born-hidden-knowl div.knowl__content[id^="knowl-uid-"],
+.ptx-content details.born-hidden-knowl details.born-hidden-knowl,
+.ptx-content details.born-hidden-knowl .lean-knowl,
+.ptx-content details.born-hidden-knowl .section-knowl,
+.ptx-content div.knowl__content[id^="knowl-uid-"] div.knowl__content[id^="knowl-uid-"],
+.ptx-content div.knowl__content[id^="knowl-uid-"] details.born-hidden-knowl,
+.ptx-content div.knowl__content[id^="knowl-uid-"] .lean-knowl,
+.ptx-content div.knowl__content[id^="knowl-uid-"] .section-knowl {
+  background: #ffffff;
+  border: 1px solid #dddddd;
+  border-radius: 4px;
+  padding: 0.35rem 0.7rem;
 }
 
 /* theorem-like blocks: no colored bars or boxes — amsart is flat -- */

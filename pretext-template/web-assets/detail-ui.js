@@ -197,6 +197,18 @@
   // modified click) they navigate to the docs as plain links.
   function wireLeanKnowls() {
     var REG = window.PAPERFORGE_LEAN_KNOWLS || {};
+    // The registry is generated FROM the built docs, so when it is present
+    // a badge it lacks has no doc page (private decl, doc-gen4 gap): its
+    // find-resolver link would 404. Degrade those to inert pills. Without
+    // a registry we cannot tell, so links are left alone.
+    if (window.PAPERFORGE_LEAN_KNOWLS) {
+      document.querySelectorAll("a.lean-link").forEach(function (a) {
+        if (REG[a.getAttribute("data-lean-ref")]) return;
+        a.removeAttribute("href");
+        a.classList.add("lean-nolink");
+        a.title += " (no documentation page)";
+      });
+    }
     document.addEventListener("click", function (e) {
       var a = e.target.closest ? e.target.closest("a.lean-link") : null;
       if (!a) return;
@@ -222,11 +234,56 @@
     });
   }
 
+  // Cross-references to divisions (Section 5, Subsection A.4, ...) open the
+  // division's summary in place, knowl-style, from the build-time registry
+  // (section-summaries.js): leading prose + a view-in-context link. TOC and
+  // in-popup navigation links keep navigating; so do divisions the registry
+  // lacks (no leading prose) and modified clicks.
+  function wireSectionSummaries() {
+    var REG = window.PAPERFORGE_SECTION_SUMMARIES;
+    if (!REG) return;
+    document.addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest(".section-knowl-foot")) {
+        e.target.closest(".section-knowl").remove();   // navigate + tidy up
+        return;
+      }
+      var a = e.target.closest ? e.target.closest('a.internal[href^="#"]') : null;
+      if (!a || a.hasAttribute("data-knowl")) return;
+      if (!a.closest(".ptx-content")) return;          // TOC, masthead
+      if (a.closest(".section-knowl, .notation-popup")) return;
+      var tag = a.getAttribute("href").slice(1);
+      var entry = REG[tag];
+      if (!entry) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;   // allow new-tab
+      e.preventDefault();
+      if (a._secKnowl && a._secKnowl.isConnected) {
+        a._secKnowl.remove();
+        a._secKnowl = null;
+        return;
+      }
+      var panel = document.createElement("div");
+      panel.className = "section-knowl";
+      panel.innerHTML =
+        '<div class="section-knowl-title">' + entry.label +
+        (entry.title ? " · " + entry.title : "") + "</div>" +
+        entry.html +
+        '<div class="section-knowl-foot"><a href="#' + tag +
+        '">view in context ↗</a></div>';
+      var host = a.closest(".para, li, .knowl__content") || a;
+      host.insertAdjacentElement("afterend", panel);
+      a._secKnowl = panel;
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([panel]).catch(function () {});
+      }
+    });
+  }
+
   ready(function () {
     hideTocOnLoad();
     buildSlider();
     wireProofDetails();
     wireNotation();
     wireLeanKnowls();
+    wireSectionSummaries();
   });
 })();
