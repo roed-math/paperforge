@@ -263,10 +263,15 @@ def convert_math(s: str) -> str:
         return "\x00%d\x00" % (len(masked) - 1)
 
     def restore(t: str) -> str:
-        while "\x00" in t:
-            t = re.sub(r"\x00(\d+)\x00",
-                       lambda m: masked[int(m.group(1))], t)
-        return t
+        # context slices may cut through a placeholder: expand until a
+        # fixpoint, then drop any orphaned halves
+        def sub(m):
+            i = int(m.group(1))
+            return masked[i] if i < len(masked) else m.group(0)
+        prev = None
+        while prev != t:
+            prev, t = t, re.sub(r"\x00(\d+)\x00", sub, t)
+        return t.replace("\x00", "")
 
     for key, pat, scope in NOTATION_WRAPS:
         if scope is not None and _CURRENT_DIVISION[0] not in scope \
