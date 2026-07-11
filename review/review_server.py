@@ -96,6 +96,66 @@ def links_for(tags) -> list[dict]:
     return out
 
 
+# A decision anchored at a whole division would put its margin marker on the
+# division HEADING, even when the decided thing lives pages later. Adapters
+# may define margin_anchor(item, tag, page) returning a finer element id
+# inside the division (the first paragraph evidencing the decision); the
+# /api/margin endpoint prefers it and falls back to the division tag.
+
+DIVISION_KINDS = {"section", "appendix", "subsection", "subsubsection"}
+
+
+def is_division(tag: str) -> bool:
+    rec = _items().get(tag)
+    return bool(rec and rec["kind"] in DIVISION_KINDS)
+
+
+_PAGE_CACHE: dict = {}
+
+
+def _page_root(page: str):
+    """lxml root of a built paper page, cached by mtime."""
+    path = ROOT / "output" / "web" / page
+    if not path.exists():
+        return None
+    key = (page, path.stat().st_mtime)
+    if _PAGE_CACHE.get("key") != key:
+        try:
+            import lxml.html
+        except ImportError:
+            return None      # refinement off; coarse anchors still work
+        _PAGE_CACHE["key"] = key
+        _PAGE_CACHE["root"] = lxml.html.parse(str(path)).getroot()
+    return _PAGE_CACHE["root"]
+
+
+def first_para_in(tag: str, page: str, pred) -> str | None:
+    """Id of the first paragraph under division `tag` (document order)
+    satisfying `pred`. Paragraphs inside <details> are skipped — a marker
+    hosted in a collapsed proof would be invisible."""
+    root = _page_root(page)
+    if root is None:
+        return None
+    try:
+        div = root.get_element_by_id(tag)
+    except KeyError:
+        return None
+    for p in div.iter("div"):
+        cls = (p.get("class") or "").split()
+        if "para" not in cls or not p.get("id"):
+            continue
+        if any(anc.tag == "details" for anc in p.iterancestors()):
+            continue
+        if pred(p):
+            return p.get("id")
+    return None
+
+
+def bib_aliases() -> dict:
+    path = ROOT / "references" / "bib-aliases.json"
+    return json.load(open(path)) if path.exists() else {}
+
+
 def extract_fragment(tag: str) -> str | None:
     """The anchored element's HTML from the built paper (knowl content)."""
     page = tag_page(tag)
@@ -459,6 +519,17 @@ class Disambig:
             data[key][block] = status
         json.dump(data, open(self.path, "w"), indent=1)
 
+    def margin_anchor(self, it, tag, page):
+        # a division-grain sense decision covers wrapped occurrences spread
+        # through the division: anchor at the first one (its \notn{sense}
+        # source text is present pre-typeset). sense "none" wraps nothing.
+        sense = it.get("status")
+        if not sense or sense == "none" or not is_division(tag):
+            return None
+        pat = re.compile(r"\\notn(?:far)?\{" + re.escape(sense) + r"\}")
+        return first_para_in(tag, page,
+                             lambda p: pat.search(p.text_content()))
+
 
 class CitationNeeds:
     name = "citations"
@@ -526,6 +597,26 @@ class CitationNeeds:
         if note is not None:
             rec["author_note"] = note
         json.dump(data, open(self.path, "w"), indent=1)
+
+    def margin_anchor(self, it, tag, page):
+        # once an insertion cites the required works, the citing paragraph
+        # is the decided thing — anchor there. Unfixed needs (no citation on
+        # the page yet) stay at the division heading.
+        if not is_division(tag):
+            return None
+        works = []
+        for f in it.get("fields", []):
+            if f["label"] == "works" and f.get("value"):
+                try:
+                    works = json.loads(f["value"])
+                except Exception:
+                    works = [f["value"]]
+        aliases = bib_aliases()
+        hrefs = {f"#{aliases[w]}" for w in works if w in aliases}
+        if not hrefs:
+            return None
+        return first_para_in(tag, page, lambda p: any(
+            a.get("href") in hrefs for a in p.iter("a")))
 
 
 class Known:
@@ -737,8 +828,13 @@ class Handler(SimpleHTTPRequestHandler):
             out = []
             for a in ADAPTERS.values():
                 for it in a.items():
-                    anchors = [l["tag"] for l in it.get("links", [])
-                               if tag_page(l["tag"]) == page]
+                    anchors = []
+                    for l in it.get("links", []):
+                        if tag_page(l["tag"]) != page:
+                            continue
+                        fine = (a.margin_anchor(it, l["tag"], page)
+                                if hasattr(a, "margin_anchor") else None)
+                        anchors.append(fine or l["tag"])
                     if not anchors:
                         continue
                     out.append({
