@@ -1013,20 +1013,29 @@ def load_extra_biblio(path: Path) -> None:
 
 
 def load_insertions(d: Path) -> None:
-    '''content/insertions/*.ptx: fragments with a first-line comment header
-    <!-- anchor: TAG position: after|append --> merged at the anchor element.
-    "after" places the fragment after the element's closing tag; "append"
-    places it before the closing tag (inside, at the end).'''
+    '''Load insertion fragments, allowing more than one placement per file.
+
+    Each placement begins with ``<!-- anchor: TAG position: POS -->`` and runs
+    until the next anchor header or EOF.  Multiple placements let one
+    proof-scoped fragment weave detail paragraphs through a proof while
+    retaining a single review/provenance artifact.
+    '''
     import re as _re
     for f in sorted(d.glob("*.ptx")):
         text = f.read_text()
-        m = _re.search(r"<!--\s*anchor:\s*(\S+)\s+position:\s*(\w[\w-]*)\s*-->",
-                       text)
-        if not m:
+        matches = list(_re.finditer(
+            r"<!--\s*anchor:\s*(\S+)\s+position:\s*(\w[\w-]*)\s*-->", text))
+        if not matches:
             warn(f"insertion {f.name}: missing anchor header — skipped")
             continue
-        body = text[m.end():].strip("\n")
-        INSERTIONS.setdefault(m.group(1), []).append((m.group(2), body))
+        for idx, m in enumerate(matches):
+            end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+            body = text[m.end():end].strip("\n")
+            if not body:
+                warn(f"insertion {f.name}: empty placement for {m.group(1)} "
+                     f"at {m.group(2)} — skipped")
+                continue
+            INSERTIONS.setdefault(m.group(1), []).append((m.group(2), body))
 
 
 def apply_insertions(secs) -> int:
@@ -1065,6 +1074,36 @@ def apply_insertions(secs) -> int:
                     j = (tclose + len("</title>")) if near else mm.end()
                     text = text[:j] + "\n" + body + text[j:]
                     n += 1
+                elif pos.startswith("proof-after-"):
+                    # Inside the anchor element's last <proof>, immediately
+                    # after the Nth authored paragraph (1-based). Detail-tier
+                    # paragraphs inserted earlier do not affect the count.
+                    import re as _re
+                    mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker), text)
+                    if not mm:
+                        continue
+                    close = f"</{mm.group(1)}>"
+                    i = text.find(close, mm.end())
+                    pclose = text.rfind("</proof>", mm.end(), i) if i >= 0 else -1
+                    popen = text.rfind("<proof", mm.end(), pclose) if pclose >= 0 else -1
+                    try:
+                        paragraph_no = int(pos.removeprefix("proof-after-"))
+                    except ValueError:
+                        paragraph_no = 0
+                    if popen >= 0 and paragraph_no > 0:
+                        proof_text = text[popen:pclose]
+                        authored = [
+                            p for p in _re.finditer(r"<p(?:\s[^>]*)?>", proof_text)
+                            if 'component="details"' not in p.group(0)
+                            and "component='details'" not in p.group(0)
+                        ]
+                        if paragraph_no <= len(authored):
+                            p = authored[paragraph_no - 1]
+                            pend = text.find("</p>", popen + p.end(), pclose)
+                            if pend >= 0:
+                                j = pend + len("</p>")
+                                text = text[:j] + "\n" + body + text[j:]
+                                n += 1
                 elif pos == "proof-append":
                     # inside the anchor element's LAST <proof>, at its end —
                     # for detail-tier elaborations of that proof

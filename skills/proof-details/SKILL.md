@@ -20,19 +20,28 @@ reader can step into a proof without the paper growing.
   diagram chase the prose waves at.
 - Do not restate the proof at the same level, and never transcribe Lean —
   translate what its structure *teaches* into mathematics.
-- 1–2 paragraphs per block; a proof can carry blocks at several levels
+- Scatter detail paragraphs through the proof: each paragraph should follow
+  the authored paragraph whose step it elaborates. Do not collect independent
+  explanations into an appendix-like block at the end of the proof.
+- 1–2 paragraphs per proof; a proof can carry blocks at several levels
   (level 2 = elaboration, level 3 = full detail) — deeper levels nest more.
 
 ## Mechanics
 
 - Locate the Lean proof via the crosswalk (`crosswalk/lean-decl-map.json` →
   decl, file, line) and read it before writing anything.
-- Output = one insertion fragment per proof in `content/insertions/`
-  (header: `<!-- anchor: <tag> position: proof-append -->`), containing bare
-  `<p detail-level="2" component="details">…</p>` paragraphs — no remark
-  wrapper, no title, no number: the proof text expands in place. Lead the
-  paragraph so it reads as a continuation ("In more detail: …"). Merged at
-  ingest by `tex2ptx --insertions`.
+- Output = one insertion fragment per proof in `content/insertions/`.
+  Precede each detail paragraph with
+  `<!-- anchor: <tag> position: proof-after-N -->`, where `N` is the 1-based
+  number of the authored proof paragraph it elaborates. A single fragment may
+  contain several such placements. Use `proof-append` only when a detail
+  genuinely elaborates the proof's final conclusion rather than an earlier
+  step.
+- Each placement contains a bare
+  `<p detail-level="2" component="details">…</p>` paragraph — no remark
+  wrapper, title, or number. It should read as a natural continuation
+  ("In more detail: …" where useful). Merged at ingest by
+  `tex2ptx --insertions`.
   The `component` attribute excludes the paragraph from the PDF (the
   arxiv/print publication files use `<version include=""/>`); the
   `detail-level` attribute is what the HTML slider and the proof-local
