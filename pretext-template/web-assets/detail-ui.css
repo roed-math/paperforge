@@ -84,10 +84,10 @@ article.theorem-like > .lean-link::before { content: "⚙ "; }
 }
 
 /* at the defining occurrence itself there is no popup: the mouse cursor
-   becomes a ≝ mark — "this is the source of the notation" (the same
+   becomes a ≔ mark — "this is the source of the notation" (the same
    affordance will serve the italic definienda of terms) */
 .notation-defcursor, .notation-defcursor * {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><text x="1" y="16" font-size="15" fill="%231e5c3a">%E2%89%9D</text></svg>') 4 12, default;
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><text x="1" y="16" font-size="15" fill="%231e5c3a">%E2%89%94</text></svg>') 4 12, default;
 }
 
 .notation-popup .notation-ctx-link {
