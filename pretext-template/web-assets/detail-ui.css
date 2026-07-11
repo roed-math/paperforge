@@ -89,7 +89,7 @@ article.theorem-like > .lean-link::before { content: "⚙ "; }
    becomes an =-in-a-circle (parallel to the help cursor's ?-in-a-circle)
    — "this is the source of the notation" */
 .notation-defcursor, .notation-defcursor * {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="8.5" fill="white" stroke="black" stroke-width="1.6"/><text x="10" y="14" font-size="12" font-weight="bold" text-anchor="middle" fill="black">=</text></svg>') 10 10, default;
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="8.5" fill="black" stroke="white" stroke-width="1.5"/><text x="10" y="14" font-size="12" font-weight="bold" text-anchor="middle" fill="white">=</text></svg>') 10 10, default;
 }
 
 .notation-popup .notation-ctx-link {
