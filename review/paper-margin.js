@@ -124,17 +124,26 @@
         m.onclick = () => {
           if (panel) { panel.remove(); panel = null; return; }
           panel = buildPanel(it, m, color);
-          // block-level anchors: panel right after the block; division-level
-          // anchors (whole sections): right after the division heading, not
-          // after the entire division
-          const isDivision = /^(SECTION|ARTICLE)$/.test(host.tagName)
-            && host.querySelector(":scope > h1, :scope > h2, :scope > h3");
-          if (isDivision && host.children.length > 3) {
-            const head = host.querySelector(":scope > h1, :scope > h2, :scope > h3");
-            head.insertAdjacentElement("afterend", panel);
+          if (getComputedStyle(m).position !== "absolute") {
+            // inline layout (<1250px): the marker sits in the text flow at
+            // the END of its host element — the panel must open at the
+            // marker, not pages away at the division heading
+            m.insertAdjacentElement("afterend", panel);
           } else {
-            host.insertAdjacentElement("afterend", panel);
+            // margin layout: block-level anchors put the panel right after
+            // the block; division-level anchors (whole sections) right
+            // after the division heading, where the marker is shown — not
+            // after the entire division
+            const isDivision = /^(SECTION|ARTICLE)$/.test(host.tagName)
+              && host.querySelector(":scope > h1, :scope > h2, :scope > h3");
+            if (isDivision && host.children.length > 3) {
+              const head = host.querySelector(":scope > h1, :scope > h2, :scope > h3");
+              head.insertAdjacentElement("afterend", panel);
+            } else {
+              host.insertAdjacentElement("afterend", panel);
+            }
           }
+          panel.scrollIntoView({ block: "nearest" });
           if (window.MathJax && MathJax.typesetPromise)
             MathJax.typesetPromise([panel]).catch(() => {});
         };
