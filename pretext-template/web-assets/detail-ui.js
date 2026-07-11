@@ -205,12 +205,6 @@
     var pop = document.createElement("div");
     pop.className = "notation-popup";
     document.body.appendChild(pop);
-    // "this is the source" affordance shown at the definition site itself
-    // (no popup there — the definition is what you are reading)
-    var defChip = document.createElement("div");
-    defChip.className = "notation-def-chip";
-    defChip.textContent = "≝";           // ≝  equals-by-definition
-    document.body.appendChild(defChip);
     var hideTimer, showTimer, hlTimer, hoverEl = null, hlTarget = null;
     var DEFSITE_HL_MS = CFG.defsiteHlDelayMs != null ? CFG.defsiteHlDelayMs : 120;
 
@@ -233,6 +227,19 @@
       if (!entry || !entry.href) return null;
       var i = entry.href.indexOf("#");
       return i >= 0 ? document.getElementById(entry.href.slice(i + 1)) : null;
+    }
+    // The DEFINING OCCURRENCE of a key: the first wrapped occurrence of
+    // exactly this key inside its defsite block. This is what hovering
+    // elsewhere highlights (a symbol-sized area, never a whole block),
+    // and hovering it is what flips the cursor to the ≝ affordance.
+    function defOccurrence(entry, k) {
+      var target = defsiteEl(entry);
+      if (!target) return null;
+      var cands = target.querySelectorAll('[class*="ptxnotn-"]');
+      for (var i = 0; i < cands.length; i++) {
+        if (keyOf(cands[i]) === k) return cands[i];
+      }
+      return null;
     }
     function show(el) {
       var k = keyOf(el);
@@ -257,17 +264,9 @@
         MathJax.typesetPromise([pop]).catch(function () {});
       }
     }
-    function showDefChip(el, k) {
-      var r = el.getBoundingClientRect();
-      defChip.title = "this defines " + k;
-      defChip.style.top = (window.scrollY + r.bottom + 4) + "px";
-      defChip.style.left = (window.scrollX + r.left) + "px";
-      defChip.classList.add("show");
-    }
     function clearMarks() {
       clearTimeout(hlTimer);
       if (hlTarget) { hlTarget.classList.remove("notation-defsite-hl"); hlTarget = null; }
-      defChip.classList.remove("show");
     }
     function scheduleHide() {
       clearTimeout(showTimer);
@@ -289,21 +288,26 @@
         clearMarks();
         var k = keyOf(el);
         var entry = k && entryFor(k);
-        var target = defsiteEl(entry);
-        var atDef = !!(target && target.contains(el));
-        // the defining block lights up before the popup — just enough delay
-        // to skip a mouse passing through the equation
+        var defEl = defOccurrence(entry, k);
+        var atDef = !!(defEl && (defEl === el || defEl.contains(el) ||
+                                 el.contains(defEl)));
+        if (atDef) {
+          // this IS the definition: no popup, no highlight — the cursor
+          // itself becomes the "source of the notation" affordance
+          el.classList.add("notation-defcursor");
+          el.title = "this defines " + k;
+          return;
+        }
+        // the defining occurrence (a symbol-sized area) lights up a beat
+        // before the popup — just enough delay to skip a passing mouse
         hlTimer = setTimeout(function () {
-          if (atDef) { showDefChip(el, k); return; }
-          if (target) {
-            target.classList.add("notation-defsite-hl");
-            hlTarget = target;
+          if (defEl) {
+            defEl.classList.add("notation-defsite-hl");
+            hlTarget = defEl;
           }
         }, DEFSITE_HL_MS);
-        if (!atDef) {
-          var delay = isFar(el) ? FAR_DELAY_MS : NEAR_DELAY_MS;
-          showTimer = setTimeout(function () { show(el); }, delay);
-        }
+        var delay = isFar(el) ? FAR_DELAY_MS : NEAR_DELAY_MS;
+        showTimer = setTimeout(function () { show(el); }, delay);
       } else if (hoverEl && !(e.target.closest &&
                               e.target.closest(".notation-popup"))) {
         hoverEl = null;
