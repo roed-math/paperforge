@@ -252,22 +252,38 @@ def convert_math(s: str) -> str:
     s = s.strip()
     if _MATHBB_RE is not None:
         s = _MATHBB_RE.sub(r"\\mathbb{\2}", s)
+    # Each wrapped span is masked while the remaining patterns run: a
+    # compound symbol like G_{\Qtwo} must not ALSO get an inner Qtwo link on
+    # the subscript that is part of its name (wraps are longest-first, so
+    # the compound wins and shadows its parts).
+    masked: list[str] = []
+
+    def wrap(k: str, m: re.Match) -> str:
+        masked.append("\\notn{%s}{%s}" % (k, m.group(0)))
+        return "\x00%d\x00" % (len(masked) - 1)
+
+    def restore(t: str) -> str:
+        while "\x00" in t:
+            t = re.sub(r"\x00(\d+)\x00",
+                       lambda m: masked[int(m.group(1))], t)
+        return t
+
     for key, pat, scope in NOTATION_WRAPS:
         if scope is not None and _CURRENT_DIVISION[0] not in scope \
                 and _CURRENT_SECTION[0] not in scope:
             continue
-        s = pat.sub(lambda m, k=key: "\\notn{%s}{%s}" % (k, m.group(0)), s)
+        s = pat.sub(lambda m, k=key: wrap(k, m), s)
     block = _CURRENT_BLOCK[0]
     for key, pat, senses in AMBIG_WRAPS:
         decision = DISAMBIG.get(key, {}).get(block)
         if decision in senses:
-            s = pat.sub(lambda m, k=decision: "\\notn{%s}{%s}" % (k, m.group(0)), s)
+            s = pat.sub(lambda m, k=decision: wrap(k, m), s)
         elif decision is None:
             for m in pat.finditer(s):
-                ctx = s[max(0, m.start() - 40):m.end() + 40]
+                ctx = restore(s[max(0, m.start() - 40):m.end() + 40])
                 UNCLASSIFIED.setdefault(key, {}).setdefault(block, []).append(ctx)
         # decision == "none": deliberate no-wrap
-    return xml_escape(s)
+    return xml_escape(restore(s))
 
 
 def convert_inline(s: str, refs: "RefMap") -> str:

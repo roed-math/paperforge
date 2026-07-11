@@ -9,6 +9,18 @@
     { key: 'notation',    icon: '?',  label: 'Notation link',
       color: '#7c3aed',
       help: 'click a term or symbol that needs a hover definition' },
+    { key: 'notation-remove', icon: '⊘', label: 'Remove notation link',
+      color: '#64748b',
+      help: 'click a notation link that should go away, or a previous ' +
+            'notation mark (purple dot) to retract it' },
+    { key: 'terminology', icon: 'T',  label: 'Terminology link',
+      color: '#4338ca',
+      help: 'select a phrase that should link to its background material ' +
+            '(drag across it, even over line breaks)' },
+    { key: 'background',  icon: '📖', label: 'Background needed',
+      color: '#0f766e',
+      help: 'click or select material that deserves a background ' +
+            'write-up (global or section-local background)' },
     { key: 'reference',   icon: '[ ]', label: 'Reference needed',
       color: '#b45309',
       help: 'click where a citation should be added' },
@@ -87,25 +99,98 @@
   });
 
   // ------------------------------------------------------------- capture
-  document.addEventListener('click', ev => {
+  function submit(info, targetEl) {
+    fetch('/api/mark', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ mode: active, page }, info)),
+    }).then(r => r.json()).then(d => {
+      if (d.created === false) {
+        toast(`already marked: “${info.text || '(here)'}”`);
+        return;
+      }
+      placeDot(targetEl, active, info.text, d.id);
+      toast(`${BY_KEY[active].label}: “${info.text || '(here)'}”`);
+      refreshCount();
+    });
+  }
+
+  function retract(dot) {
+    const id = dot.dataset.markId;
+    fetch('/api/mark-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).then(r => r.json()).then(d => {
+      if (d.ok) { dot.remove(); toast(`retracted ${id}`); refreshCount(); }
+      else toast(`${id} is not open — manage it in the dashboard`);
+    });
+  }
+
+  // phrase marks: releasing a selection while a pen is active marks the
+  // selected phrase (works across line/element boundaries — the natural
+  // gesture for terminology and background material)
+  let selectionMark = false;
+  document.addEventListener('mouseup', ev => {
     if (!active) return;
+    if (ev.target.closest('#mark-palette, #margin-strip, .margin-panel'))
+      return;
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    let node = range.commonAncestorContainer;
+    if (node.nodeType === 3) node = node.parentElement;
+    if (!node.closest('.ptx-content')) return;
+    const text = String(sel).replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (!text) return;
+    selectionMark = true;               // swallow the click that follows
+    setTimeout(() => { selectionMark = false; }, 0);
+    submit(Object.assign(anchorsOf(node), {
+      text, context: contextOf(node),
+    }), node);
+  }, true);
+
+  document.addEventListener('click', ev => {
+    if (!active || selectionMark) return;
     if (ev.target.closest('#mark-palette, #margin-strip, .margin-panel'))
       return;
     const content = ev.target.closest('.ptx-content');
     if (!content) return;
     ev.preventDefault();
     ev.stopPropagation();
-    const info = capture(ev);
-    fetch('/api/mark', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({ mode: active, page }, info)),
-    }).then(r => r.json()).then(d => {
-      placeDot(ev.target, active, info.text, d.id);
-      toast(`${BY_KEY[active].label}: “${info.text || '(here)'}”`);
-      refreshCount();
-    });
+
+    const dot = ev.target.closest('.mark-dot');
+    if (active === 'notation-remove') {
+      // retract a previous notation suggestion, or request unwrapping of
+      // an existing (rendered) notation link — idempotent otherwise
+      if (dot && dot.dataset.mode === 'notation') return retract(dot);
+      if (dot) return toast('that mark is not a notation mark');
+      if (!ev.target.closest('[class*="ptxnotn-"]'))
+        return toast('no notation link here to remove');
+    } else if (dot) {
+      return;                           // dots are never re-marked
+    } else if (active === 'notation'
+               && ev.target.closest('[class*="ptxnotn-"]')) {
+      return toast('already has a notation link');
+    }
+    submit(capture(ev), ev.target);
   }, true);
+
+  function anchorsOf(el) {
+    let anchor = '', block = '';
+    for (; el; el = el.parentElement) {
+      if (el.id) {
+        if (!anchor) anchor = el.id;
+        if (!/^p-/.test(el.id)) { block = el.id; break; }
+      }
+    }
+    return { anchor, block };
+  }
+
+  function contextOf(el) {
+    const para = el.closest('p, li, .para') || el;
+    return (para.textContent || '').replace(/\s+/g, ' ').slice(0, 200);
+  }
 
   function capture(ev) {
     let text = String(window.getSelection() || '').trim();
@@ -121,23 +206,17 @@
         text = s.slice(a < 0 ? i : a, i + (b < 0 ? 0 : b)).trim();
       }
     }
-    let anchor = '', block = '';
-    for (let el = ev.target; el; el = el.parentElement) {
-      if (el.id) {
-        if (!anchor) anchor = el.id;
-        if (!/^p-/.test(el.id)) { block = el.id; break; }
-      }
-    }
-    const para = ev.target.closest('p, li') || ev.target;
-    const context = (para.textContent || '').replace(/\s+/g, ' ')
-      .slice(0, 200);
-    return { text, context, anchor, block };
+    return Object.assign(anchorsOf(ev.target), {
+      text, context: contextOf(ev.target),
+    });
   }
 
   // ------------------------------------------------------------- display
   function placeDot(target, mode, text, id) {
     const dot = document.createElement('span');
     dot.className = 'mark-dot';
+    dot.dataset.markId = id;
+    dot.dataset.mode = mode;
     dot.style.background = (BY_KEY[mode] || {}).color || '#666';
     dot.title = `${(BY_KEY[mode] || {}).label || mode}: ${text} (${id})`;
     target.insertAdjacentElement('afterend', dot);

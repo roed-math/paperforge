@@ -40,34 +40,107 @@
     }
   }
 
-  function buildSlider() {
-    var items = Array.prototype.slice.call(
-      document.querySelectorAll('[class*="detail-level-"]'));
-    if (!items.length) return;
-    var max = items.reduce(function (a, d) { return Math.max(a, levelOf(d)); }, 1);
+  // Header controls, mounted in the sticky navbar:
+  //   Detail [range] n/max [manual]   [?]
+  // Level 0 = everything collapsed; level 1 = proofs/remark knowls open;
+  // level 2+ = woven detail-tier paragraphs. "manual" replays the reader's
+  // own open/close choices (recorded continuously, kept in localStorage).
+  // [?] toggles notation links for readers who find the hovers distracting.
+  var LS = {
+    mode: "pf-detail-mode",            // "manual" | "0".."9"
+    manual: "pf-detail-manual",        // {elementId: open?}
+    notn: "pf-notation-off",           // "1" | absent
+  };
+  function lsGet(k, dflt) {
+    try { var v = localStorage.getItem(k); return v === null ? dflt : v; }
+    catch (e) { return dflt; }
+  }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
+  function buildHeaderControls() {
+    var tiers = Array.prototype.slice.call(
+      document.querySelectorAll('[class*="detail-level-"]'));
+    var knowls = Array.prototype.slice.call(
+      document.querySelectorAll("details.born-hidden-knowl"));
+    if (!tiers.length && !knowls.length) return;
+    var max = tiers.reduce(function (a, d) { return Math.max(a, levelOf(d)); },
+                           knowls.length ? 1 : 0);
+
+    var bar = document.querySelector(".ptx-navbar-contents") ||
+              document.querySelector("#ptx-navbar") || document.body;
     var wrap = document.createElement("div");
-    wrap.className = "detail-slider";
+    wrap.className = "detail-ctl";
     wrap.innerHTML =
       '<label for="detail-range">Detail</label>' +
-      '<input id="detail-range" type="range" min="0" max="' + max + '" value="0" step="1">' +
-      '<span class="detail-val">0/' + max + '</span>';
-
-    var host = document.querySelector("#ptx-masthead") || document.body;
-    host.appendChild(wrap);
+      '<input id="detail-range" type="range" min="0" max="' + max +
+      '" value="0" step="1" title="0 = collapsed, 1 = proofs, higher = more">' +
+      '<span class="detail-val">0/' + max + '</span>' +
+      '<button type="button" class="detail-manual" title="replay your own ' +
+      'open/close choices (remembered between visits)">manual</button>' +
+      '<button type="button" class="notn-toggle" title="notation links ' +
+      'on/off">?</button>';
+    bar.appendChild(wrap);
 
     var range = wrap.querySelector("input");
     var out = wrap.querySelector(".detail-val");
-    function apply() {
-      var t = +range.value;
+    var manualBtn = wrap.querySelector(".detail-manual");
+    var notnBtn = wrap.querySelector(".notn-toggle");
+
+    var memory = {};
+    try { memory = JSON.parse(lsGet(LS.manual, "{}")); } catch (e) {}
+
+    function applyLevel(t) {
       out.textContent = t + "/" + max;
-      items.forEach(function (d) {
+      knowls.forEach(function (d) { d.open = t >= 1; });
+      tiers.forEach(function (d) {
         if (d.tagName === "DETAILS") d.open = levelOf(d) <= t;
       });
       setTierClasses(document.body, t);
     }
-    range.addEventListener("input", apply);
-    apply();
+    function applyManual() {
+      out.textContent = "–/" + max;
+      Object.keys(memory).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.tagName === "DETAILS") el.open = !!memory[id];
+      });
+    }
+    function setMode(mode) {
+      lsSet(LS.mode, mode);
+      manualBtn.classList.toggle("active", mode === "manual");
+      if (mode === "manual") applyManual();
+      else { range.value = mode; applyLevel(+mode); }
+    }
+
+    // reader open/close choices are remembered — recorded from the actual
+    // gesture (a click on a <summary>), because 'toggle' events also fire,
+    // on an unpredictable schedule, for the slider's programmatic sweeps
+    document.addEventListener("click", function (e) {
+      var sum = e.target.closest && e.target.closest("summary");
+      if (!sum || e.target.closest(".detail-next-btn")) return;
+      var d = sum.parentElement;
+      if (!d || d.tagName !== "DETAILS" || !d.id) return;
+      setTimeout(function () {         // after the default toggle applied
+        memory[d.id] = d.open;
+        lsSet(LS.manual, JSON.stringify(memory));
+      }, 0);
+    });
+
+    range.addEventListener("input", function () { setMode(range.value); });
+    manualBtn.addEventListener("click", function () { setMode("manual"); });
+
+    function setNotn(off) {
+      document.body.classList.toggle("notation-links-off", off);
+      notnBtn.classList.toggle("off", off);
+      notnBtn.title = "notation links " + (off ? "off — click to enable"
+                                               : "on — click to disable");
+      lsSet(LS.notn, off ? "1" : "");
+    }
+    notnBtn.addEventListener("click", function () {
+      setNotn(!document.body.classList.contains("notation-links-off"));
+    });
+
+    setNotn(lsGet(LS.notn, "") === "1");
+    setMode(lsGet(LS.mode, "0"));
   }
 
   // Proof-local details: a small button on the "Proof" line (visible only
@@ -132,7 +205,14 @@
     var pop = document.createElement("div");
     pop.className = "notation-popup";
     document.body.appendChild(pop);
-    var hideTimer, showTimer, hoverEl = null;
+    // "this is the source" affordance shown at the definition site itself
+    // (no popup there — the definition is what you are reading)
+    var defChip = document.createElement("div");
+    defChip.className = "notation-def-chip";
+    defChip.textContent = "≝";           // ≝  equals-by-definition
+    document.body.appendChild(defChip);
+    var hideTimer, showTimer, hlTimer, hoverEl = null, hlTarget = null;
+    var DEFSITE_HL_MS = CFG.defsiteHlDelayMs != null ? CFG.defsiteHlDelayMs : 120;
 
     pop.addEventListener("mouseenter", function () { clearTimeout(hideTimer); });
     pop.addEventListener("mouseleave", scheduleHide);
@@ -149,6 +229,11 @@
     function isFar(el) {
       return !!(el.closest && el.closest(".ptxfar"));
     }
+    function defsiteEl(entry) {
+      if (!entry || !entry.href) return null;
+      var i = entry.href.indexOf("#");
+      return i >= 0 ? document.getElementById(entry.href.slice(i + 1)) : null;
+    }
     function show(el) {
       var k = keyOf(el);
       var entry = k && entryFor(k);
@@ -156,8 +241,11 @@
       clearTimeout(hideTimer);
       var html = '<span class="notation-popup-key">' + k + '</span>' + entry.html;
       if (entry.href) {
+        // terminology entries (entry.more) point at the background block
+        // that reviews the notion; notation entries at the defining spot
+        var label = entry.more ? "more details" : "see definition in context";
         html += '<a class="notation-ctx-link" href="' + entry.href +
-                '">see definition in context &#x2197;</a>';
+                '">' + label + ' &#x2197;</a>';
       }
       pop.innerHTML = html;
       var r = el.getBoundingClientRect();
@@ -169,12 +257,28 @@
         MathJax.typesetPromise([pop]).catch(function () {});
       }
     }
+    function showDefChip(el, k) {
+      var r = el.getBoundingClientRect();
+      defChip.title = "this defines " + k;
+      defChip.style.top = (window.scrollY + r.bottom + 4) + "px";
+      defChip.style.left = (window.scrollX + r.left) + "px";
+      defChip.classList.add("show");
+    }
+    function clearMarks() {
+      clearTimeout(hlTimer);
+      if (hlTarget) { hlTarget.classList.remove("notation-defsite-hl"); hlTarget = null; }
+      defChip.classList.remove("show");
+    }
     function scheduleHide() {
       clearTimeout(showTimer);
-      hideTimer = setTimeout(function () { pop.classList.remove("show"); }, 180);
+      hideTimer = setTimeout(function () {
+        pop.classList.remove("show");
+        clearMarks();
+      }, 180);
     }
 
     document.addEventListener("mouseover", function (e) {
+      if (document.body.classList.contains("notation-links-off")) return;
       var el = e.target.closest
         ? e.target.closest('[class*="ptxnotn-"]') : null;
       if (el === hoverEl) return;
@@ -182,8 +286,24 @@
         hoverEl = el;
         clearTimeout(hideTimer);
         clearTimeout(showTimer);
-        var delay = isFar(el) ? FAR_DELAY_MS : NEAR_DELAY_MS;
-        showTimer = setTimeout(function () { show(el); }, delay);
+        clearMarks();
+        var k = keyOf(el);
+        var entry = k && entryFor(k);
+        var target = defsiteEl(entry);
+        var atDef = !!(target && target.contains(el));
+        // the defining block lights up before the popup — just enough delay
+        // to skip a mouse passing through the equation
+        hlTimer = setTimeout(function () {
+          if (atDef) { showDefChip(el, k); return; }
+          if (target) {
+            target.classList.add("notation-defsite-hl");
+            hlTarget = target;
+          }
+        }, DEFSITE_HL_MS);
+        if (!atDef) {
+          var delay = isFar(el) ? FAR_DELAY_MS : NEAR_DELAY_MS;
+          showTimer = setTimeout(function () { show(el); }, delay);
+        }
       } else if (hoverEl && !(e.target.closest &&
                               e.target.closest(".notation-popup"))) {
         hoverEl = null;
@@ -280,7 +400,7 @@
 
   ready(function () {
     hideTocOnLoad();
-    buildSlider();
+    buildHeaderControls();
     wireProofDetails();
     wireNotation();
     wireLeanKnowls();

@@ -704,6 +704,16 @@ class Marks:
     MODE_HELP = {
         "notation": "This term/symbol should get a ? hover definition "
                     "(feeds notation/notation-map.json curation).",
+        "notation-remove": "This notation link is wrong or unwanted — the "
+                           "pipeline should unwrap it (feeds notation-map "
+                           "guards / disambiguation 'none' decisions).",
+        "terminology": "This phrase should get a terminology link: short "
+                       "hover summary + 'more details' pointing at the "
+                       "background material that reviews it.",
+        "background": "This material needs a background write-up (global "
+                      "background section after the introduction, or the "
+                      "section-local background subsection). Drafted ONLY "
+                      "from author-supplied references.",
         "reference": "A citation should be added here (feeds the "
                      "citation-audit worklist).",
         "detail-high": "Too much detail here — move prose down to a higher "
@@ -720,8 +730,15 @@ class Marks:
                             "open | applied | dismissed.",
                 "marks": {}}
 
-    def add(self, rec: dict) -> str:
+    def add(self, rec: dict) -> tuple[str, bool]:
         data = self._load()
+        # idempotent: re-marking the same thing the same way is a no-op
+        for k, m in data["marks"].items():
+            if (m["status"] == "open"
+                    and m["mode"] == rec.get("mode", "?")
+                    and m["anchor"] == rec.get("anchor", "")
+                    and m["text"] == (rec.get("text") or "")[:200]):
+                return k, False
         mid = f"mk-{len(data['marks']) + 1:03d}"
         while mid in data["marks"]:
             mid = f"mk-{int(mid[3:]) + 1:03d}"
@@ -739,7 +756,18 @@ class Marks:
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         json.dump(data, open(self.path, "w"), indent=1)
-        return mid
+        return mid, True
+
+    def delete(self, mid: str) -> bool:
+        """Retract an open mark entirely (author changed their mind).
+        Applied/dismissed marks are history and stay."""
+        data = self._load()
+        m = data["marks"].get(mid)
+        if not m or m["status"] != "open":
+            return False
+        del data["marks"][mid]
+        json.dump(data, open(self.path, "w"), indent=1)
+        return True
 
     def open_marks(self, page: str | None = None) -> list[dict]:
         data = self._load()
@@ -954,8 +982,11 @@ class Handler(SimpleHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         req = json.loads(self.rfile.read(n))
         if self.path == "/api/mark":
-            mid = ADAPTERS["marks"].add(req)
-            return self._json({"ok": True, "id": mid})
+            mid, created = ADAPTERS["marks"].add(req)
+            return self._json({"ok": True, "id": mid, "created": created})
+        if self.path == "/api/mark-delete":
+            ok = ADAPTERS["marks"].delete(req.get("id", ""))
+            return self._json({"ok": ok})
         if self.path != "/api/decide":
             return self._json({"error": "unknown endpoint"}, 404)
         a = ADAPTERS.get(req.get("artifact"))

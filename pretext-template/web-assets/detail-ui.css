@@ -1,18 +1,30 @@
-/* ============ Detail slider (mounts in the masthead) ============ */
-/* Floating control: reliably visible regardless of PreTeXt's masthead layout.
-   (A production version would override the masthead template for a real slot.) */
-.detail-slider {
-  position: fixed; bottom: 1rem; right: 1rem; z-index: 1100;
-  display: inline-flex; align-items: center; gap: .5rem;
-  background: #fff; color: #111;
-  border: 1px solid rgba(0,0,0,.2); border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(0,0,0,.18);
-  padding: .4rem .7rem; font-size: .85rem; white-space: nowrap;
+/* ============ Header controls (mount in the sticky navbar) ============ */
+/* Detail [range] n/max [manual]  [?] — always at hand while reading. */
+.detail-ctl {
+  display: inline-flex; align-items: center; gap: .45rem;
+  margin-left: auto; padding: 0 .6rem;
+  font-size: .8rem; white-space: nowrap; color: inherit;
 }
-.detail-slider input[type="range"] { width: 8rem; vertical-align: middle; }
-.detail-slider .detail-val { font-variant-numeric: tabular-nums; opacity: .7; }
+.detail-ctl input[type="range"] { width: 6.5rem; vertical-align: middle; }
+.detail-ctl .detail-val { font-variant-numeric: tabular-nums; opacity: .7; }
+.detail-ctl button {
+  border: 1px solid rgba(0,0,0,.25); border-radius: 5px;
+  background: transparent; color: inherit; cursor: pointer;
+  font-size: .75rem; padding: .1rem .45rem; line-height: 1.3;
+}
+.detail-ctl button.active { background: #111; color: #fff; }
+.detail-ctl .notn-toggle { font-weight: 700; }
+.detail-ctl .notn-toggle.off { opacity: .45; text-decoration: line-through; }
+@media (max-width: 700px) { .detail-ctl input[type="range"] { width: 4rem; }
+  .detail-ctl label { display: none; } }
 @media (prefers-color-scheme: dark) {
-  .detail-slider { background: #22262b; color: #e8e8e8; border-color: rgba(255,255,255,.18); }
+  .detail-ctl button { border-color: rgba(255,255,255,.3); }
+  .detail-ctl button.active { background: #e8e8e8; color: #111; }
+}
+
+/* reader turned notation links off: no affordance either */
+body.notation-links-off .ptxfar, body.notation-links-off .ptxfar * {
+  cursor: inherit;
 }
 
 /* ============ Notation hovers (no knowl underline) ============ */
@@ -62,6 +74,26 @@ article.theorem-like > .lean-link::before { content: "⚙ "; }
    cursor is the help question-mark; the definition popup appears after a
    delay (FAR_DELAY_MS in detail-ui.js) with a see-in-context link. */
 .ptxfar, .ptxfar * { cursor: help; }
+
+/* hovering a notation link also lights up the block where the notation is
+   defined (pastel sea green), a beat before the popup appears */
+.notation-defsite-hl {
+  background: rgba(46, 139, 87, 0.16);
+  border-radius: 3px;
+  transition: background 0.2s ease-in;
+}
+
+/* at the definition site itself there is no popup: a small ≝ tag marks
+   "this is the source of the notation" (also used for term definienda) */
+.notation-def-chip {
+  position: absolute; z-index: 950; display: none;
+  font-size: 0.95rem; line-height: 1;
+  padding: 0.1rem 0.3rem; border-radius: 4px;
+  background: rgba(46, 139, 87, 0.14); color: #1e5c3a;
+  border: 1px solid rgba(46, 139, 87, 0.35);
+  pointer-events: none;
+}
+.notation-def-chip.show { display: block; }
 
 .notation-popup .notation-ctx-link {
   display: block; margin-top: .4rem; font-size: .78rem;
