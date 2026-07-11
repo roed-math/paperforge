@@ -177,8 +177,10 @@ class Gen:
                  if title_el is not None else "")
         stmt = el.find("statement")
         body = self.prose(stmt) if stmt is not None else ""
-        head = (f"*{rec['kind'].capitalize()} {rec['number']} of the "
-                f"paper{title}.*")
+        # backlink into the interactive paper: Verso content pages all sit
+        # one directory below the blueprint root, so ../../paper/ is stable
+        head = (f"*[{rec['kind'].capitalize()} {rec['number']} of the "
+                f"paper](../../paper/paper.html#{tag}){title}.*")
         # 'lemma' is a Lean keyword; VersoBlueprint registers the directive
         # with a trailing underscore
         directive = "lemma_" if kind == "lemma" else kind
@@ -262,6 +264,10 @@ class Gen:
             anchors = " ".join(f'{{bpref "{t}"}}[]'
                                for t in rec.get("paper_tags", [])
                                if t in self.nodes)
+            ptag = next(iter(rec.get("paper_tags", [])), None)
+            if ptag:
+                anchors += (f" — [see in the paper]"
+                            f"(../../paper/paper.html#{ptag})")
             body = [f':::proposition "{label}" (lean := "{name}") '
                     f'(parent := "foundations") (tags := "{status}")',
                     desc, ""]

@@ -23,6 +23,15 @@ python3 $PF/ingest/lean_axioms.py @@LEAN_ROOT@@ \
     --seed-aliases source/main.ptx --aliases-out references/bib-aliases.json
 python3 $PF/ingest/notation_far.py .
 pretext build web
+# Lazy math typesetting (single-page documents): typeset near the viewport
+# only. PreTeXt owns the MathJax config, so patch the emitted startup module;
+# and because lazy never processes the hidden #latex-macros div, the paper's
+# macros must move into the MathJax config (mathjax_macros.py).
+for f in output/web/_static/pretext/js/mathjax_startup.js \
+         output/web/_static/pretext/js/dist/mathjax_startup.js; do
+    [ -f "$f" ] && sed -i '' 's|"input/asciimath",|"input/asciimath", "ui/lazy",|' "$f"
+done
+python3 $PF/ingest/mathjax_macros.py .
 python3 $PF/ingest/notation_registry.py .
 cat web-assets/notation-registry.js web-assets/detail-ui.js > output/web/detail-ui.js
 cp web-assets/detail-ui.css web-assets/paper-style.css web-assets/fonts-cm.css output/web/
