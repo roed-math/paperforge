@@ -192,10 +192,41 @@
     });
   }
 
+  // Lean badges open the declaration's doc entry inline, knowl-style, when
+  // the build-time registry (lean-knowls.js) has it; otherwise (or on
+  // modified click) they navigate to the docs as plain links.
+  function wireLeanKnowls() {
+    var REG = window.PAPERFORGE_LEAN_KNOWLS || {};
+    document.addEventListener("click", function (e) {
+      var a = e.target.closest ? e.target.closest("a.lean-link") : null;
+      if (!a) return;
+      var entry = REG[a.getAttribute("data-lean-ref")];
+      if (!entry) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;   // allow new-tab
+      e.preventDefault();
+      if (a._leanKnowl) {
+        a._leanKnowl.remove();
+        a._leanKnowl = null;
+        return;
+      }
+      var panel = document.createElement("div");
+      panel.className = "lean-knowl";
+      panel.innerHTML = entry.html +
+        '<div class="lean-knowl-foot"><a href="' + entry.href +
+        '">full documentation ↗</a></div>';
+      a.insertAdjacentElement("afterend", panel);
+      a._leanKnowl = panel;
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([panel]).catch(function () {});
+      }
+    });
+  }
+
   ready(function () {
     hideTocOnLoad();
     buildSlider();
     wireProofDetails();
     wireNotation();
+    wireLeanKnowls();
   });
 })();

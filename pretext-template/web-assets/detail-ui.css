@@ -84,3 +84,12 @@ article.theorem-like > a.lean-link::before { content: "⚙ "; }
 .detail-next-btn { display: inline-block; margin: 0 0 0 .9em;
   padding: .05em .55em; vertical-align: baseline; }
 details.hiddenproof:not([open]) .detail-next-btn { display: none; }
+
+/* inline Lean knowls: a badge click opens the declaration's doc entry */
+.lean-knowl { background: #f5f5f5; border-radius: 4px; padding: .6em .9em;
+  margin: .45em 0; font-size: .9em; overflow-x: auto; }
+.lean-knowl .decl_header, .lean-knowl code, .lean-knowl pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .95em; }
+.lean-knowl-foot { margin-top: .45em; text-align: right; font-size: .92em; }
+.lean-knowl a { color: #111; }
