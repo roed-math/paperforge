@@ -33,7 +33,11 @@ for f in output/web/_static/pretext/js/mathjax_startup.js \
 done
 python3 $PF/ingest/mathjax_macros.py .
 python3 $PF/ingest/notation_registry.py .
-cat web-assets/notation-registry.js web-assets/detail-ui.js > output/web/detail-ui.js
+python3 $PF/ingest/section_summaries_registry.py .
+cat web-assets/notation-registry.js > output/web/detail-ui.js
+[ -f web-assets/lean-knowls.js ] && cat web-assets/lean-knowls.js >> output/web/detail-ui.js
+[ -f web-assets/section-summaries.js ] && cat web-assets/section-summaries.js >> output/web/detail-ui.js
+cat web-assets/detail-ui.js >> output/web/detail-ui.js
 cp web-assets/detail-ui.css web-assets/paper-style.css web-assets/fonts-cm.css output/web/
 cp -R web-assets/fonts output/web/fonts
 echo "build-web complete"

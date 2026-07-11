@@ -1130,6 +1130,16 @@ def apply_insertions(secs) -> int:
                     tclose = text.find("</title>", mm.end())
                     near = tclose >= 0 and tclose - mm.end() < 300
                     j = (tclose + len("</title>")) if near else mm.end()
+                    # a structured division holds blocks only inside its
+                    # <introduction>: bare-block fragments go inside it, at
+                    # the front (a fragment that IS an <introduction> stays
+                    # put — it supplies the wrapper itself)
+                    head = _re.sub(r"^(\s*<!--.*?-->)*\s*", "", body,
+                                   flags=_re.S)
+                    if not head.startswith("<introduction"):
+                        nx = _re.match(r"\s*<introduction\b[^>]*>", text[j:])
+                        if nx:
+                            j += nx.end()
                     text = text[:j] + "\n" + body + text[j:]
                     n += 1
                 elif pos.startswith("proof-after-"):
