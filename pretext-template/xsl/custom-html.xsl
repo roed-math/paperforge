@@ -15,14 +15,18 @@
   <xsl:param name="html.css.extra" select="'detail-ui.css paper-style.css'"/>
   <xsl:param name="html.js.extra"  select="'detail-ui.js'"/>
 
-  <!-- PLACEHOLDER: paper-init sets this from paper.toml [inputs] lean_docs_base. -->
+  <!-- PLACEHOLDER: paper-init sets these from paper.toml [inputs]
+       lean_docs_base (+ optional suffix). With doc-gen4's find resolver the
+       convention is base '../lean/<project>/find/?pattern=' and suffix
+       '#doc' (relative from /paper/, working deployed and locally). -->
   <xsl:param name="lean.docs.base" select="'@@LEAN_DOCS_BASE@@'"/>
+  <xsl:param name="lean.docs.suffix" select="'#doc'"/>
 
   <!-- (1) Inline <lean ref="Namespace.decl">label</lean> -> link to the
        formalization, tagged for a later hover/knowl enhancement. -->
   <xsl:template match="lean">
     <a class="lean-link"
-       href="{concat($lean.docs.base, @ref, '.html')}"
+       href="{concat($lean.docs.base, @ref, $lean.docs.suffix)}"
        data-lean-ref="{@ref}"
        title="Formalized as {@ref}">
       <xsl:apply-templates/>

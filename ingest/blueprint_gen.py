@@ -293,8 +293,8 @@ open Informal
 
 This blueprint pairs every paper statement that has a formalized counterpart
 with its Lean declarations, generated from the paper source and the
-formalization crosswalk (paperforge ingest/blueprint_gen.py). Node status is
-computed from the Lean declarations directly; edges follow the paper's
+formalization crosswalk (paperforge `ingest/blueprint_gen.py`). Node status
+is computed from the Lean declarations directly; edges follow the paper's
 proofs and the axiom census.
 
 {includes}

@@ -828,6 +828,11 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             self.path = "/vendor/node_modules/mathjax/" + rest
             return super().do_GET()
+        if url.path.startswith("/lean/"):
+            # local mirror of the site's /lean/ (doc-gen4 subsets), so the
+            # paper's Lean badges resolve during review too
+            self.path = "/output/leandocs/" + url.path[len("/lean/"):]
+            return super().do_GET()
         if url.path.startswith("/paper/"):
             rel = url.path[len("/paper/"):] or "index.html"
             target = ROOT / "output" / "web" / rel
