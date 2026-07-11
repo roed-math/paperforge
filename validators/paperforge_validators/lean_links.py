@@ -34,7 +34,7 @@ def _load_scanner():
 
 def _lean_decls(project: Path) -> set[str]:
     iter_decls = _load_scanner()
-    return {full for full, _doc, _f, _ln in iter_decls(project)}
+    return {full for full, _doc, _f, _ln, _private in iter_decls(project)}
 
 
 def _refs(config: dict) -> list[tuple[str, Path]]:

@@ -32,7 +32,11 @@ def main():
     docs = root / args.docs
 
     declmap = json.load(open(root / "crosswalk/lean-decl-map.json"))
-    wanted = {e["decl"] for v in declmap.values() for e in v}
+    entries = [e for v in declmap.values() for e in v]
+    # private decls have no doc-gen4 page by design; the paper renders their
+    # badges unlinked (tex2ptx @nodocs), so they are not "missing" here
+    private = {e["decl"] for e in entries if e.get("private")}
+    wanted = {e["decl"] for e in entries} - private
 
     reg: dict[str, dict] = {}
     for page in sorted(docs.rglob("*.html")):
@@ -70,6 +74,9 @@ def main():
     missing = sorted(wanted - set(reg))
     print(f"lean-knowls: {len(reg)}/{len(wanted)} declarations "
           f"({out.stat().st_size // 1024}K) -> {out}")
+    if private:
+        print(f"  {len(private)} private decl(s) badge unlinked:",
+              ", ".join(sorted(private)))
     if missing:
         print("  missing:", ", ".join(missing[:6]),
               "…" if len(missing) > 6 else "")

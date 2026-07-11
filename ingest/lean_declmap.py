@@ -27,7 +27,7 @@ KIND = {"theorem": "theorem", "thm": "theorem", "lemma": "lemma", "lem": "lemma"
         "definition": "definition", "claim": "claim"}
 DECL = re.compile(
     r"^\s*(?:@\[[^\]]*\]\s*)*"
-    r"(?:private\s+|protected\s+|noncomputable\s+|nonrec\s+|partial\s+)*"
+    r"((?:private\s+|protected\s+|noncomputable\s+|nonrec\s+|partial\s+)*)"
     r"(theorem|lemma|def|abbrev|instance|structure)\s+([A-Za-z_][\w'.]*)")
 NS = re.compile(r"^\s*namespace\s+([A-Za-z_][\w'.]*)")
 SECTION = re.compile(r"^\s*section\b")
@@ -39,9 +39,11 @@ DOC_CITE = re.compile(
 
 
 def iter_decls(lean_root: Path):
-    """Yield (fully_qualified_name, docstring_or_None, file, lineno) for every
-    top-level declaration under lean_root. Tracks namespaces, anonymous
-    `section` scopes, and skips keyword matches inside block comments."""
+    """Yield (fully_qualified_name, docstring_or_None, file, lineno, private)
+    for every top-level declaration under lean_root. Tracks namespaces,
+    anonymous `section` scopes, and skips keyword matches inside block
+    comments. `private` matters downstream because doc-gen4 emits no doc
+    page for private declarations."""
     for f in sorted(lean_root.rglob("*.lean")):
         if ".lake" in f.parts:
             continue
@@ -71,10 +73,10 @@ def iter_decls(lean_root: Path):
                 stack.pop()
                 continue
             if m := DECL.match(line):
-                name = m.group(2)
+                name = m.group(3)
                 ns = [s for s in stack if s]
                 full = ".".join(ns + [name]) if ns else name
-                yield full, pending_doc, f, ln
+                yield full, pending_doc, f, ln, "private" in m.group(1)
                 pending_doc = None
 
 
@@ -104,26 +106,30 @@ def main() -> int:
     tags = load_tag_maps(args.current, args.old)
     out: dict[str, list] = {}
 
-    def add(kind, num, decl, via, f, ln):
+    def add(kind, num, decl, via, f, ln, private):
         tag = tags.get((kind, num)) or tags.get(("any", num))
         if not tag:
             return
         rec = {"decl": decl, "via": via, "file": str(f), "line": ln,
                "cited": f"{kind} {num}"}
+        if private:
+            # doc-gen4 emits no page for private decls: badge consumers
+            # must not link into the docs (tex2ptx renders these unlinked)
+            rec["private"] = True
         lst = out.setdefault(tag, [])
         if not any(r["decl"] == decl for r in lst):
             lst.append(rec)
 
-    for full, pending_doc, f, ln in iter_decls(args.lean_root):
+    for full, pending_doc, f, ln, private in iter_decls(args.lean_root):
         name = full.rsplit(".", 1)[-1]
         if nm := NAME_CITE.search(name):
             add(KIND[nm.group(1)], f"{nm.group(2)}.{nm.group(3)}",
-                full, "name", f.relative_to(args.lean_root), ln)
+                full, "name", f.relative_to(args.lean_root), ln, private)
         if pending_doc:
             dm = DOC_CITE.search(pending_doc[:200])
             if dm:
                 add(KIND[dm.group(1).lower()], dm.group(2), full,
-                    "docstring", f.relative_to(args.lean_root), ln)
+                    "docstring", f.relative_to(args.lean_root), ln, private)
     args.out.write_text(json.dumps(out, indent=1))
     n = sum(len(v) for v in out.values())
     print(f"wrote {args.out}: {len(out)} tags, {n} decl links")

@@ -23,14 +23,27 @@
   <xsl:param name="lean.docs.suffix" select="'#doc'"/>
 
   <!-- (1) Inline <lean ref="Namespace.decl">label</lean> -> link to the
-       formalization, tagged for a later hover/knowl enhancement. -->
+       formalization, tagged for a later hover/knowl enhancement. A badge
+       carrying @nodocs (e.g. a private declaration, which doc-gen4 skips)
+       renders as plain text with a tooltip instead of a dead link. -->
   <xsl:template match="lean">
-    <a class="lean-link"
-       href="{concat($lean.docs.base, @ref, $lean.docs.suffix)}"
-       data-lean-ref="{@ref}"
-       title="Formalized as {@ref}">
-      <xsl:apply-templates/>
-    </a>
+    <xsl:choose>
+      <xsl:when test="@nodocs">
+        <span class="lean-link lean-nolink"
+              data-lean-ref="{@ref}"
+              title="Formalized as {@ref} ({@nodocs} declaration — no documentation page)">
+          <xsl:apply-templates/>
+        </span>
+      </xsl:when>
+      <xsl:otherwise>
+        <a class="lean-link"
+           href="{concat($lean.docs.base, @ref, $lean.docs.suffix)}"
+           data-lean-ref="{@ref}"
+           title="Formalized as {@ref}">
+          <xsl:apply-templates/>
+        </a>
+      </xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <!-- (2) Detail tiers: stamp a `detail-level-N` class onto any element that

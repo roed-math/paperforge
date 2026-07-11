@@ -623,7 +623,9 @@ def convert_theoremlike(env: str, body: str, ctx: Ctx) -> None:
         else:
             ann = ctx.lean_ann.get(rec["decl"]) or rec["decl"].rsplit(".", 1)[-1]
             text = f"Lean ({ann})"
-        ctx.emit(f'<lean ref="{rec["decl"]}">{text}</lean>')
+        # private decls have no doc-gen4 page: render the badge unlinked
+        nodocs = ' nodocs="private"' if rec.get("private") else ""
+        ctx.emit(f'<lean ref="{rec["decl"]}"{nodocs}>{text}</lean>')
     ctx.indent -= 1
     ctx.emit(f"</{PTX_THM[env]}>")
     set_block(_CURRENT_DIVISION[0])     # back to division grain
