@@ -291,8 +291,33 @@ def convert_math(s: str) -> str:
     return xml_escape(restore(s))
 
 
+# LaTeX accent macros -> combining marks, folded to precomposed characters
+# (NFC). Prose and bibliography only: accent macros are invalid in math
+# mode, so a pre-pass over the whole inline run is safe.
+_ACCENT_MARKS = {"'": "\u0301", "`": "\u0300", '"': "\u0308",
+                 "^": "\u0302", "~": "\u0303", "=": "\u0304",
+                 ".": "\u0307", "u": "\u0306", "v": "\u030c",
+                 "c": "\u0327", "H": "\u030b"}
+_ACCENT_RE = re.compile(
+    r"\\(['`\"^~=.])\{([a-zA-Z])\}"      # \'{e}
+    r"|\\(['`\"^~=.])([a-zA-Z])"          # \'e
+    r"|\\([uvcH])\{([a-zA-Z])\}")         # \c{c}, \u{i}, \v{s}, \H{o}
+
+
+def fold_accents(s: str) -> str:
+    import unicodedata
+
+    def rep(m):
+        mark = m.group(1) or m.group(3) or m.group(5)
+        ch = m.group(2) or m.group(4) or m.group(6)
+        return unicodedata.normalize("NFC", ch + _ACCENT_MARKS[mark])
+
+    return _ACCENT_RE.sub(rep, s)
+
+
 def convert_inline(s: str, refs: "RefMap") -> str:
     """Convert a run of paragraph-level LaTeX to PreTeXt inline markup."""
+    s = fold_accents(s)
     out = []
     i = 0
     n = len(s)
@@ -1207,6 +1232,46 @@ def apply_insertions(secs) -> int:
                     p = text.rfind("</proof>", mm.end(), i) if i >= 0 else -1
                     if p >= 0:
                         text = text[:p] + body + "\n" + text[p:]
+                        n += 1
+                elif pos.startswith("statement-after-"):
+                    # Inside the anchor element's FIRST <statement>, after the
+                    # Nth authored paragraph (1-based) — statement detail
+                    # tiers (detail-level="1"). Tier paragraphs inserted
+                    # earlier do not affect the count.
+                    import re as _re
+                    mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker), text)
+                    if not mm:
+                        continue
+                    sopen = text.find("<statement>", mm.end())
+                    sclose = text.find("</statement>", sopen) if sopen >= 0 else -1
+                    try:
+                        paragraph_no = int(pos.removeprefix("statement-after-"))
+                    except ValueError:
+                        paragraph_no = 0
+                    if sclose >= 0 and paragraph_no > 0:
+                        stmt_text = text[sopen:sclose]
+                        authored = [
+                            p for p in _re.finditer(r"<p(?:\s[^>]*)?>", stmt_text)
+                            if 'component="details"' not in p.group(0)
+                            and "component='details'" not in p.group(0)
+                        ]
+                        if paragraph_no <= len(authored):
+                            p = authored[paragraph_no - 1]
+                            pend = text.find("</p>", sopen + p.end(), sclose)
+                            if pend >= 0:
+                                j = pend + len("</p>")
+                                text = text[:j] + "\n" + body + text[j:]
+                                n += 1
+                elif pos == "statement-append":
+                    # inside the anchor element's FIRST <statement>, at its end
+                    import re as _re
+                    mm = _re.search(r"<(\w+)[^>]*" + _re.escape(marker), text)
+                    if not mm:
+                        continue
+                    sopen = text.find("<statement>", mm.end())
+                    sclose = text.find("</statement>", sopen) if sopen >= 0 else -1
+                    if sclose >= 0:
+                        text = text[:sclose] + body + "\n" + text[sclose:]
                         n += 1
                 else:  # append (inside, at end)
                     import re as _re
