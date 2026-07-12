@@ -100,6 +100,18 @@
         line-height:1.45 }
       .pfm-help-row { margin:.15rem 0 }
       .pfm-help-row b { font-weight:700 }
+      .pfm-editbtn { border:1px solid #d8dce3; background:#fff;
+        color:#16181d; border-radius:6px; padding:.1rem .5rem;
+        cursor:pointer; font-size:.75rem; margin:.2rem 0 }
+      .pfm-editor { margin:.35rem 0 }
+      .pfm-ta { width:100%; min-height:5.5rem; font:12px ui-monospace,
+        monospace; border:1px solid #d8dce3; border-radius:6px;
+        padding:.4rem; box-sizing:border-box; background:#fff;
+        color:#16181d }
+      .pfm-bibsel { max-width:18rem; font-size:.75rem }
+      @media (prefers-color-scheme: dark) {
+        .pfm-editbtn, .pfm-ta { background:#1d2026; color:#e7e9ee;
+          border-color:#33383f } }
       .pfm-ref { color:#2563eb; border-bottom:1px dotted #2563eb }
       .pfm-strip { position:fixed; bottom:1rem; left:1rem; z-index:1100;
         display:flex; gap:.5rem; align-items:center; background:#fff;
@@ -109,6 +121,25 @@
       .pfm-strip button { border:1px solid #d8dce3; background:#fff;
         border-radius:6px; cursor:pointer; padding:.15rem .5rem }
       .pfm-strip a { color:#2563eb; text-decoration:none; font-size:.85rem }
+      .pfm-chip { font-size:.8rem; color:#5c6470 }
+      .pfm-pop { position:fixed; bottom:3.4rem; left:1rem; z-index:1100;
+        display:none; max-width:44rem; max-height:24rem; overflow:auto;
+        background:#fff; color:#16181d; border:1px solid #d8dce3;
+        border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,.18);
+        padding:.6rem .8rem; font:13px -apple-system,sans-serif }
+      .pfm-pop.show { display:block }
+      .pfm-pop select, .pfm-pop input, .pfm-pop button {
+        border:1px solid #d8dce3; background:#fff; color:#16181d;
+        border-radius:6px; padding:.2rem .45rem; font-size:.8rem }
+      .pfm-pop-row { display:flex; gap:.4rem; align-items:center;
+        margin:.3rem 0; flex-wrap:wrap }
+      .pfm-pop-head { font-size:.8rem; color:#5c6470; margin:.15rem 0 }
+      .pfm-pop-pre { max-height:12rem; overflow:auto; font-size:.68rem;
+        background:rgba(128,128,128,.08); padding:.45rem; border-radius:6px;
+        white-space:pre-wrap; width:100% }
+      @media (prefers-color-scheme: dark) {
+        .pfm-pop, .pfm-pop select, .pfm-pop input, .pfm-pop button {
+          background:#1d2026; color:#e7e9ee; border-color:#33383f } }
       @media (prefers-color-scheme: dark) {
         .pfm-marker, .pfm-panel, .pfm-strip, .pfm-row button, .pfm-note,
         .pfm-strip button { background:#1d2026; color:#e7e9ee;
@@ -170,6 +201,71 @@
         const s = el("div", "pfm-stmt");
         s.innerHTML = latexPreview(it.text);
         p.appendChild(s);
+        // statements of dossier items are editable in place (same
+        // write path as the dashboard editor: /api/decide {text})
+        if (["novelty", "followups"].includes(it.artifact)) {
+          const editBtn = el("button", "pfm-editbtn", "✎ edit");
+          editBtn.onclick = () => {
+            if (p.querySelector(".pfm-editor")) return;
+            editBtn.style.display = "none";
+            const ed = el("div", "pfm-editor");
+            const ta = document.createElement("textarea");
+            ta.className = "pfm-ta";
+            ta.value = it.text;
+            const prev = el("div", "pfm-stmt");
+            prev.innerHTML = latexPreview(it.text);
+            const bib = document.createElement("select");
+            bib.className = "pfm-bibsel";
+            bib.innerHTML = '<option value="">insert citation…</option>';
+            fetch("/api/bib").then(r => r.json()).then(b => {
+              for (const k of Object.keys(b).sort()) {
+                const o = document.createElement("option");
+                o.value = k;
+                o.textContent = k + " — " + (b[k].short || b[k].text || "")
+                  .slice(0, 60);
+                bib.appendChild(o);
+              }
+            }).catch(() => {});
+            bib.onchange = () => {
+              if (!bib.value) return;
+              const at = ta.selectionStart || ta.value.length;
+              ta.value = ta.value.slice(0, at) + `\\cite{${bib.value}}`
+                       + ta.value.slice(at);
+              bib.value = "";
+              ta.dispatchEvent(new Event("input"));
+            };
+            let t2 = null;
+            ta.addEventListener("input", () => {
+              prev.innerHTML = latexPreview(ta.value);
+              if (window.MathJax && MathJax.typesetPromise)
+                MathJax.typesetPromise([prev]).catch(() => {});
+              clearTimeout(t2);
+              t2 = setTimeout(async () => {
+                if (await decide({ artifact: it.artifact, id: it.id,
+                                   text: ta.value })) {
+                  it.text = ta.value;
+                  s.innerHTML = latexPreview(ta.value);
+                  flash(p);
+                }
+              }, 800);
+            });
+            const done = el("button", "pfm-editbtn", "done");
+            done.onclick = () => {
+              ed.remove();
+              editBtn.style.display = "";
+              if (window.MathJax && MathJax.typesetPromise)
+                MathJax.typesetPromise([s]).catch(() => {});
+            };
+            const row = el("div", "pfm-pop-row");
+            row.append(bib, done);
+            ed.append(ta, row, el("div", "pfm-pop-head", "preview:"), prev);
+            s.insertAdjacentElement("afterend", ed);
+            ta.focus();
+            if (window.MathJax && MathJax.typesetPromise)
+              MathJax.typesetPromise([prev]).catch(() => {});
+          };
+          p.appendChild(editBtn);
+        }
       }
       if (it.summary) p.appendChild(el("div", "pfm-sum", it.summary));
       const row = el("div", "pfm-row");
@@ -244,14 +340,19 @@
       setTimeout(() => s.classList.remove("show"), 1000);
     }
 
-    /* floating strip: pending count + prev/next navigation */
+    /* floating strip: the review cockpit — pending count, prev/next
+       navigation, validator status, agent dispatch, running jobs */
     const strip = el("div", "pfm-strip");
     const label = el("span");
     const prev = el("button", null, "↑");
     const next = el("button", null, "↓");
+    const vbadge = el("button", "pfm-chip", "✓ …");
+    const dispatchBtn = el("button", "pfm-chip", "⚙ dispatch");
+    const jobsChip = el("button", "pfm-chip", "");
+    jobsChip.style.display = "none";
     const dash = el("a", null, "dashboard ↗");
     dash.href = "/review"; dash.target = "review";
-    strip.append(prev, label, next, dash);
+    strip.append(prev, label, next, vbadge, dispatchBtn, jobsChip, dash);
     document.body.appendChild(strip);
     let cursor = -1;
     function pendings() {
@@ -274,5 +375,137 @@
     prev.onclick = () => go(-1);
     next.onclick = () => go(1);
     updateStrip();
+
+    /* one popover shared by the cockpit chips, anchored above the strip */
+    const pop = el("div", "pfm-pop");
+    document.body.appendChild(pop);
+    let popOwner = null;
+    function togglePop(owner, fill) {
+      if (popOwner === owner && pop.classList.contains("show")) {
+        pop.classList.remove("show"); popOwner = null; return;
+      }
+      pop.innerHTML = "";
+      fill(pop);
+      pop.classList.add("show");
+      popOwner = owner;
+    }
+
+    /* validators: badge shows the last run; click = tail + run-now */
+    function paintValidators(v) {
+      if (!v) { vbadge.textContent = "✓ validators"; return; }
+      const ok = v.errors === 0;
+      vbadge.textContent = (ok ? "✓ " : "✗ ") + v.errors + " err";
+      vbadge.style.color = ok ? "#15803d" : "#b91c1c";
+      vbadge.style.borderColor = vbadge.style.color;
+    }
+    let lastV = null;
+    fetch("/api/progress").then(r => r.json())
+      .then(p => { lastV = p.validators; paintValidators(lastV); })
+      .catch(() => {});
+    vbadge.onclick = () => togglePop("validators", (box) => {
+      const head = el("div", "pfm-pop-head",
+        lastV ? `${lastV.errors} error(s), ${lastV.warnings} warning(s) — ` +
+                lastV.ran
+              : "validators: not run in this session");
+      const run = el("button", null, "run validators");
+      run.onclick = async () => {
+        run.disabled = true; run.textContent = "running…";
+        try {
+          lastV = await (await fetch("/api/validate", { method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}" })).json();
+          paintValidators(lastV);
+        } finally { togglePop("validators", () => {});
+                    vbadge.onclick(); }
+      };
+      const pre = el("pre", "pfm-pop-pre",
+                     (lastV && lastV.tail) || "");
+      box.append(head, run, pre);
+    });
+
+    /* dispatch: send a task's open marks to a configured agent */
+    dispatchBtn.onclick = async () => {
+      const cfg = await (await fetch("/api/agents")).json();
+      togglePop("dispatch", (box) => {
+        if (!cfg.agents.length) {
+          box.append(el("div", "pfm-pop-head",
+            "no agents configured (agents.toml in the instance root)"));
+          return;
+        }
+        const task = document.createElement("select");
+        for (const t of cfg.tasks) {
+          const o = document.createElement("option");
+          o.value = t.name;
+          o.textContent = t.label + (t.open !== null ? ` (${t.open} open)` : "");
+          task.appendChild(o);
+        }
+        const agent = document.createElement("select");
+        for (const a of cfg.agents) {
+          const o = document.createElement("option");
+          o.value = a.name; o.textContent = a.label;
+          if (a.name === cfg.default) o.selected = true;
+          agent.appendChild(o);
+        }
+        const extra = document.createElement("input");
+        extra.className = "pfm-note";
+        extra.placeholder = "extra instructions (optional)";
+        const go = el("button", null, "dispatch");
+        const msg = el("span", "pfm-pop-head", "");
+        go.onclick = async () => {
+          go.disabled = true;
+          const r = await fetch("/api/dispatch", { method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ task: task.value, agent: agent.value,
+                                   extra: extra.value }) });
+          const j = await r.json();
+          msg.textContent = r.ok ? `started ${j.job.id}` : "✗ " + j.error;
+          go.disabled = false;
+          pollJobs();
+        };
+        const row = el("div", "pfm-pop-row");
+        row.append(task, agent);
+        const row2 = el("div", "pfm-pop-row");
+        row2.append(extra, go, msg);
+        box.append(row, row2);
+      });
+    };
+
+    /* jobs: chip appears when agents ran this session; click = logs */
+    let jobs = [];
+    async function pollJobs() {
+      try { jobs = await (await fetch("/api/jobs")).json(); }
+      catch (e) { return; }
+      const running = jobs.filter(j => j.status === "running").length;
+      if (!jobs.length) { jobsChip.style.display = "none"; return; }
+      jobsChip.style.display = "";
+      jobsChip.textContent = running ? `▶ ${running} running`
+                                     : `${jobs.length} job(s)`;
+      jobsChip.style.color = running ? "#b45309" : "#5c6470";
+      jobsChip.style.borderColor = jobsChip.style.color;
+      if (running) setTimeout(pollJobs, 4000);
+    }
+    jobsChip.onclick = () => togglePop("jobs", (box) => {
+      for (const j of jobs) {
+        const row = el("div", "pfm-pop-row");
+        const color = j.status === "running" ? "#b45309"
+                    : j.status === "done" ? "#15803d" : "#b91c1c";
+        const head = el("span", null,
+                        `${j.status} · ${j.task_label} · ${j.agent} · ${j.id}`);
+        head.style.color = color;
+        const logBtn = el("button", null, "log");
+        logBtn.onclick = async () => {
+          let pre = row.querySelector("pre");
+          if (pre) { pre.remove(); return; }
+          const l = await (await fetch(
+            `/api/job-log?id=${j.id}`)).json();
+          pre = el("pre", "pfm-pop-pre", l.tail || "(empty)");
+          row.appendChild(pre);
+        };
+        row.append(head, logBtn);
+        box.appendChild(row);
+      }
+      if (!jobs.length) box.append(el("div", "pfm-pop-head", "no jobs yet"));
+    });
+    pollJobs();
   });
 })();
