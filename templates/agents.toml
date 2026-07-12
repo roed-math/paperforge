@@ -1,0 +1,26 @@
+# Agents the review dashboard may dispatch for generative work (the
+# Pipeline tab). paper-init copies this to the instance root as
+# agents.toml; edit it there.
+#
+# Each agent is a headless CLI invocation, run as a subprocess in the
+# instance root; the literal string {prompt} is replaced by the task
+# briefing the review server builds (open review marks + the relevant
+# skill/doc pointers + the ground rules). Output streams to
+# logs/agent-jobs/<job>.log and the job appears in the Pipeline tab.
+#
+# YOU own the permission model. The Claude default below may edit files
+# without prompting but will refuse un-allowlisted shell commands in
+# headless mode — allowlist the build/validator/git commands in the
+# instance's .claude/settings.json, or replace the flag with
+# --dangerously-skip-permissions if you accept unattended shell access.
+
+[agents.claude]
+label = "Claude (headless CLI)"
+command = ["claude", "-p", "--permission-mode", "acceptEdits", "{prompt}"]
+
+# [agents.codex]
+# label = "GPT (Codex CLI)"
+# command = ["codex", "exec", "{prompt}"]
+
+[dispatch]
+default_agent = "claude"

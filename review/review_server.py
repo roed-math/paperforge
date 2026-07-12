@@ -818,6 +818,224 @@ ADAPTERS = {a.name: a() for a in (Novelty, Followups, Disambig,
                                   CitationNeeds, Known, Marks)}
 
 
+# ---------------------------------------------------------------- agents
+# Generative work dispatched from the dashboard: the server spawns a
+# headless CLI agent (claude -p, codex exec, ...) as a subprocess in the
+# instance root. Which agents exist — and exactly how they are invoked,
+# including permission flags — is the author's choice, enumerated in
+# agents.toml (template: paperforge/templates/agents.toml). The agent's
+# output streams to logs/agent-jobs/<id>.log; acceptance stays where it
+# always is: validators + the author review surfaces.
+
+AGENTS_TOML = ROOT / "agents.toml"
+JOBS_DIR = ROOT / "logs" / "agent-jobs"
+JOBS: dict[str, dict] = {}
+
+
+def load_agents() -> dict:
+    if not AGENTS_TOML.exists():
+        return {"agents": {}, "default": None}
+    import tomllib
+    with open(AGENTS_TOML, "rb") as f:
+        cfg = tomllib.load(f)
+    agents = {k: {"label": v.get("label", k), "command": v["command"]}
+              for k, v in cfg.get("agents", {}).items() if v.get("command")}
+    default = cfg.get("dispatch", {}).get("default_agent")
+    if default not in agents:
+        default = next(iter(agents), None)
+    return {"agents": agents, "default": default}
+
+
+def _open_marks(modes) -> list[dict]:
+    marks = ADAPTERS["marks"]._load()["marks"]
+    return [dict(m, id=k) for k, m in marks.items()
+            if m["status"] == "open" and m["mode"] in modes]
+
+
+# Dispatchable tasks. Each builds a self-contained prompt: the agent runs
+# in the instance root with no conversation context, so the prompt names
+# the files to read, the change to make, and the gates to run.
+_COMMON_EPILOGUE = """
+Ground rules:
+- Work in the current directory (the paperforge instance root).
+- Read paper.toml first; tool code lives in the paperforge checkout its
+  scripts reference.
+- After making changes: run scripts/build-web.sh, then the validator suite
+  (PYTHONPATH=<paperforge>/validators python3 -m paperforge_validators.run_all)
+  and do not finish with new errors.
+- Flip each mark you acted on to "applied" (with a note saying what you
+  did) in directives/marks.json; leave marks you could not act on "open"
+  with a note explaining why.
+- Commit one logical change per commit with a Generated-by: trailer
+  naming your model. Do NOT push or deploy.
+"""
+
+TASKS = {
+    "notation-marks": {
+        "label": "Apply notation marks",
+        "modes": ("notation", "notation-remove"),
+        "brief": (
+            "Process the OPEN notation review marks below: the author "
+            "clicked these spots in the paper asking for a notation link "
+            "(mode 'notation') or for an existing link to be removed "
+            "(mode 'notation-remove').\n"
+            "Read docs/NOTATION.md in the paperforge checkout and the "
+            "instance's notation/notation-map.json + "
+            "notation/disambiguation.json conventions before editing. "
+            "Pattern lessons in the docs are binding (accent guards, "
+            "left guards on single letters, PDF compile check after map "
+            "changes)."),
+    },
+    "background-marks": {
+        "label": "Draft background material",
+        "modes": ("background",),
+        "brief": (
+            "Process the OPEN background marks below: each names material "
+            "the author wants covered in a background section (global "
+            "section after the introduction for material used across "
+            "sections; section-local background subsection otherwise).\n"
+            "Follow the background-sections skill in the paperforge "
+            "checkout (skills/). HARD CONSTRAINT: draft ONLY from the "
+            "author-supplied references in references/ — do not write "
+            "background from your own knowledge; every background passage "
+            "links to the specific part of the reference it summarizes. "
+            "If a needed reference is missing, leave the mark open with a "
+            "note requesting it."),
+    },
+    "proof-details": {
+        "label": "Add proof detail (detail-low marks)",
+        "modes": ("detail-low",),
+        "brief": (
+            "Process the OPEN detail-low marks below: the author wants "
+            "more explanation at these spots. Follow "
+            "directives/proof-details-briefing.md (detail paragraphs as "
+            "insertions with position proof-after-N / statement-after-N, "
+            "detail-level tiers, component=\"details\")."),
+    },
+    "custom": {
+        "label": "Custom instructions",
+        "modes": (),
+        "brief": "",
+    },
+}
+
+
+def build_prompt(task: str, extra: str) -> str | None:
+    t = TASKS.get(task)
+    if t is None:
+        return None
+    parts = []
+    if t["brief"]:
+        parts.append(t["brief"])
+    if t["modes"]:
+        marks = _open_marks(t["modes"])
+        if not marks and not extra:
+            return ""                     # nothing to do
+        parts.append("Open marks (JSON):\n"
+                     + json.dumps(marks, ensure_ascii=False, indent=1))
+    if extra:
+        parts.append("Additional instructions from the author:\n" + extra)
+    parts.append(_COMMON_EPILOGUE)
+    return "\n\n".join(parts)
+
+
+def dispatch_job(task: str, agent: str, extra: str) -> tuple[dict | None, str]:
+    import subprocess
+    import threading
+    import time
+
+    cfg = load_agents()
+    a = cfg["agents"].get(agent)
+    if a is None:
+        return None, f"unknown agent '{agent}' (configure agents.toml)"
+    prompt = build_prompt(task, extra)
+    if prompt is None:
+        return None, f"unknown task '{task}'"
+    if prompt == "":
+        return None, "no open marks for this task"
+    jid = time.strftime("job-%Y%m%d-%H%M%S")
+    if jid in JOBS:
+        jid += f"-{len(JOBS)}"
+    JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = JOBS_DIR / f"{jid}.log"
+    cmd = [c.replace("{prompt}", prompt) for c in a["command"]]
+    log_fh = open(log_path, "w")
+    log_fh.write(f"# task={task} agent={agent} started={time.ctime()}\n")
+    log_fh.write(f"# command: {cmd[0]} ... ({len(cmd)} args)\n\n")
+    log_fh.flush()
+    try:
+        proc = subprocess.Popen(
+            cmd, cwd=ROOT, stdout=log_fh, stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL, start_new_session=True)
+    except OSError as e:
+        log_fh.write(f"FAILED TO START: {e}\n")
+        log_fh.close()
+        return None, f"could not start agent: {e}"
+    rec = {"id": jid, "task": task, "task_label": TASKS[task]["label"],
+           "agent": agent, "status": "running",
+           "started": time.ctime(), "finished": None, "returncode": None,
+           "log": str(log_path.relative_to(ROOT))}
+    JOBS[jid] = rec
+
+    def reap():
+        rc = proc.wait()
+        log_fh.close()
+        rec["status"] = "done" if rc == 0 else "failed"
+        rec["returncode"] = rc
+        rec["finished"] = time.ctime()
+        (JOBS_DIR / f"{jid}.json").write_text(json.dumps(rec, indent=1))
+
+    threading.Thread(target=reap, daemon=True).start()
+    return rec, ""
+
+
+VALIDATE_LAST = ROOT / "logs" / "validators-last.json"
+
+
+def run_validators() -> dict:
+    import subprocess
+    import sys
+    import time
+
+    env = dict(__import__("os").environ)
+    env["PYTHONPATH"] = str(HERE.parent / "validators")
+    proc = subprocess.run(
+        [sys.executable, "-m", "paperforge_validators.run_all"],
+        cwd=ROOT, env=env, capture_output=True, text=True, timeout=600)
+    out = (proc.stdout + proc.stderr).strip()
+    m = re.search(r"(\d+) error\(s\), (\d+) warning\(s\)", out)
+    rec = {"ran": time.ctime(), "ok": proc.returncode == 0,
+           "errors": int(m.group(1)) if m else None,
+           "warnings": int(m.group(2)) if m else None,
+           "tail": out[-4000:]}
+    VALIDATE_LAST.parent.mkdir(parents=True, exist_ok=True)
+    VALIDATE_LAST.write_text(json.dumps(rec, indent=1))
+    return rec
+
+
+_PENDING = {"proposed", "needs-discussion", "needs-citation", "?",
+            "open", "uncertain"}
+
+
+def progress_snapshot() -> dict:
+    marks: dict[str, dict] = {}
+    for m in ADAPTERS["marks"]._load()["marks"].values():
+        d = marks.setdefault(m["mode"], {"open": 0, "applied": 0,
+                                         "dismissed": 0})
+        d[m.get("status", "open")] = d.get(m.get("status", "open"), 0) + 1
+    decisions = {}
+    for a in ADAPTERS.values():
+        if a.name == "marks":
+            continue
+        items = a.items()
+        decisions[a.name] = {
+            "label": a.label, "total": len(items),
+            "pending": sum(1 for it in items if it["status"] in _PENDING)}
+    validators = (json.loads(VALIDATE_LAST.read_text())
+                  if VALIDATE_LAST.exists() else None)
+    return {"marks": marks, "decisions": decisions, "validators": validators}
+
+
 # ---------------------------------------------------------------- server
 
 class Handler(SimpleHTTPRequestHandler):
@@ -844,6 +1062,32 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json([{"name": a.name, "label": a.label,
                                 "blurb": a.blurb, "count": len(a.items())}
                                for a in ADAPTERS.values()])
+        if url.path == "/api/agents":
+            cfg = load_agents()
+            return self._json({
+                "agents": [{"name": k, "label": v["label"]}
+                           for k, v in cfg["agents"].items()],
+                "default": cfg["default"],
+                "tasks": [{"name": k, "label": v["label"],
+                           "modes": list(v["modes"]),
+                           "open": len(_open_marks(v["modes"]))
+                                   if v["modes"] else None}
+                          for k, v in TASKS.items()]})
+        if url.path == "/api/jobs":
+            return self._json(sorted(JOBS.values(),
+                                     key=lambda r: r["id"], reverse=True))
+        if url.path == "/api/job-log":
+            q = parse_qs(url.query)
+            jid = q.get("id", [""])[0]
+            rec = JOBS.get(jid)
+            if rec is None:
+                return self._json({"error": "unknown job"}, 404)
+            p = ROOT / rec["log"]
+            tail = p.read_text(errors="replace")[-8000:] if p.exists() else ""
+            return self._json({"id": jid, "status": rec["status"],
+                               "tail": tail})
+        if url.path == "/api/progress":
+            return self._json(progress_snapshot())
         if url.path == "/api/items":
             q = parse_qs(url.query)
             a = ADAPTERS.get(q.get("artifact", [""])[0])
@@ -987,6 +1231,18 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/mark-delete":
             ok = ADAPTERS["marks"].delete(req.get("id", ""))
             return self._json({"ok": ok})
+        if self.path == "/api/dispatch":
+            rec, err = dispatch_job(req.get("task", ""),
+                                    req.get("agent", ""),
+                                    (req.get("extra") or "").strip())
+            if rec is None:
+                return self._json({"error": err}, 400)
+            return self._json({"ok": True, "job": rec})
+        if self.path == "/api/validate":
+            try:
+                return self._json(run_validators())
+            except Exception as e:
+                return self._json({"error": str(e)}, 500)
         if self.path != "/api/decide":
             return self._json({"error": "unknown endpoint"}, 404)
         a = ADAPTERS.get(req.get("artifact"))

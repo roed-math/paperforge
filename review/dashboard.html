@@ -198,6 +198,11 @@ async function loadTabs() {
     b.dataset.name = a.name;
     nav.appendChild(b);
   }
+  const pb = document.createElement("button");
+  pb.textContent = "Pipeline";
+  pb.onclick = () => { current = "__pipeline"; render(); refreshTabs(); };
+  pb.dataset.name = "__pipeline";
+  nav.appendChild(pb);
   if (!current && arts.length) current = arts[0].name;
   refreshTabs();
 }
@@ -205,15 +210,159 @@ function refreshTabs() {
   document.querySelectorAll("#tabs button").forEach(b =>
     b.classList.toggle("active", b.dataset.name === current));
   const a = arts.find(x => x.name === current);
-  document.getElementById("blurb").textContent = a ? a.blurb : "";
+  document.getElementById("blurb").textContent =
+    current === "__pipeline"
+      ? "Generative work: dispatch a configured agent on the open review " +
+        "marks, watch its progress, and confirm the validators are green."
+      : (a ? a.blurb : "");
 }
 
 async function render() {
+  if (current === "__pipeline") return renderPipeline();
+  clearInterval(window.__pipelinePoll);
   const items = await (await fetch(`/api/items?artifact=${current}`)).json();
   document.getElementById("count").textContent = `${items.length} items`;
   const main = document.getElementById("cards");
   main.innerHTML = "";
   for (const it of items) main.appendChild(card(it));
+}
+
+/* ---------------- pipeline tab ---------------- */
+async function renderPipeline() {
+  const main = document.getElementById("cards");
+  document.getElementById("count").textContent = "";
+  const [cfg, prog] = await Promise.all([
+    (await fetch("/api/agents")).json(),
+    (await fetch("/api/progress")).json()]);
+  main.innerHTML = "";
+
+  const panel = (title) => {
+    const d = document.createElement("div");
+    d.className = "card";
+    d.innerHTML = `<h3 style="margin:.1rem 0 .5rem">${title}</h3>`;
+    main.appendChild(d);
+    return d;
+  };
+
+  /* progress: marks by mode, decisions by artifact */
+  const pr = panel("Progress");
+  const rows = [];
+  for (const [mode, c] of Object.entries(prog.marks || {})) {
+    rows.push(`<tr><td>mark · ${mode}</td><td>${c.open || 0} open</td>` +
+              `<td>${c.applied || 0} applied</td>` +
+              `<td>${c.dismissed || 0} dismissed</td></tr>`);
+  }
+  for (const [name, d] of Object.entries(prog.decisions || {})) {
+    rows.push(`<tr><td>${d.label}</td><td>${d.pending} pending</td>` +
+              `<td colspan="2">${d.total} total</td></tr>`);
+  }
+  pr.insertAdjacentHTML("beforeend",
+    `<table style="font-size:.85rem;border-spacing:.6rem .15rem">${rows.join("")}</table>`);
+
+  /* validators */
+  const vd = panel("Validators");
+  const vstat = document.createElement("div");
+  const vbtn = document.createElement("button");
+  const paintV = (v) => {
+    vstat.innerHTML = v
+      ? `<b style="color:${v.errors === 0 ? 'var(--ok, #15803d)' : '#b91c1c'}">` +
+        `${v.errors} error(s), ${v.warnings} warning(s)</b>` +
+        ` <span style="opacity:.7">— last run ${v.ran}</span>` +
+        `<pre style="max-height:14rem;overflow:auto;font-size:.72rem;` +
+        `background:rgba(128,128,128,.08);padding:.5rem;border-radius:6px">` +
+        `${(v.tail || "").replace(/&/g, "&amp;").replace(/</g, "&lt;")}</pre>`
+      : "<i>not run in this session</i>";
+  };
+  paintV(prog.validators);
+  vbtn.textContent = "Run validators";
+  vbtn.onclick = async () => {
+    vbtn.disabled = true; vbtn.textContent = "running…";
+    try { paintV(await (await fetch("/api/validate", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: "{}"})).json()); }
+    finally { vbtn.disabled = false; vbtn.textContent = "Run validators"; }
+  };
+  vd.appendChild(vbtn); vd.appendChild(vstat);
+
+  /* dispatch */
+  const dd = panel("Dispatch an agent");
+  if (!cfg.agents.length) {
+    dd.insertAdjacentHTML("beforeend",
+      "<i>No agents configured — create agents.toml in the instance root " +
+      "(template: paperforge/templates/agents.toml).</i>");
+  } else {
+    const taskSel = document.createElement("select");
+    for (const t of cfg.tasks) {
+      const o = document.createElement("option");
+      o.value = t.name;
+      o.textContent = t.label + (t.open !== null ? ` (${t.open} open)` : "");
+      taskSel.appendChild(o);
+    }
+    const agentSel = document.createElement("select");
+    for (const a of cfg.agents) {
+      const o = document.createElement("option");
+      o.value = a.name; o.textContent = a.label;
+      if (a.name === cfg.default) o.selected = true;
+      agentSel.appendChild(o);
+    }
+    const extra = document.createElement("input");
+    extra.placeholder = "additional instructions (optional; required for Custom)";
+    extra.style.cssText = "flex:1;min-width:16rem;padding:.3rem .5rem";
+    const go = document.createElement("button");
+    go.textContent = "Dispatch";
+    const msg = document.createElement("span");
+    go.onclick = async () => {
+      go.disabled = true; msg.textContent = "";
+      const r = await fetch("/api/dispatch", {method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({task: taskSel.value, agent: agentSel.value,
+                              extra: extra.value})});
+      const j = await r.json();
+      msg.textContent = r.ok ? `started ${j.job.id}` : ("✗ " + j.error);
+      go.disabled = false;
+      paintJobs();
+    };
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:.5rem;flex-wrap:wrap;align-items:center";
+    row.append(taskSel, agentSel, extra, go, msg);
+    dd.appendChild(row);
+  }
+
+  /* jobs */
+  const jd = panel("Agent jobs");
+  const jlist = document.createElement("div");
+  jd.appendChild(jlist);
+  async function paintJobs() {
+    const jobs = await (await fetch("/api/jobs")).json();
+    jlist.innerHTML = jobs.length ? "" : "<i>none this session</i>";
+    for (const j of jobs) {
+      const row = document.createElement("div");
+      row.style.cssText = "margin:.35rem 0;padding:.4rem .6rem;border:1px solid " +
+        "var(--line);border-radius:6px;font-size:.85rem";
+      const color = j.status === "running" ? "#b45309"
+                  : j.status === "done" ? "#15803d" : "#b91c1c";
+      row.innerHTML = `<b style="color:${color}">${j.status}</b> · ` +
+        `${j.task_label} · ${j.agent} · ${j.id} ` +
+        `<button style="font-size:.75rem">log</button>`;
+      row.querySelector("button").onclick = async () => {
+        let pre = row.querySelector("pre");
+        if (pre) { pre.remove(); return; }
+        const l = await (await fetch(`/api/job-log?id=${j.id}`)).json();
+        pre = document.createElement("pre");
+        pre.style.cssText = "max-height:16rem;overflow:auto;font-size:.72rem;" +
+          "background:rgba(128,128,128,.08);padding:.5rem;border-radius:6px;" +
+          "white-space:pre-wrap";
+        pre.textContent = l.tail || "(empty)";
+        row.appendChild(pre);
+      };
+      jlist.appendChild(row);
+    }
+  }
+  paintJobs();
+  clearInterval(window.__pipelinePoll);
+  window.__pipelinePoll = setInterval(() => {
+    if (current === "__pipeline") paintJobs();
+    else clearInterval(window.__pipelinePoll);
+  }, 4000);
 }
 
 /* ---------------- saving (all interactions autosave) ---------------- */

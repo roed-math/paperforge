@@ -86,3 +86,22 @@ Any new judgment cache the pipeline grows should (a) key items by stable ids,
 (b) carry a `status` whose value set includes an author-approved state,
 (c) tolerate an `author_note` field, and (d) get an adapter class in
 `review/review_server.py` (~30 lines). The dashboard picks it up as a tab.
+
+## Pipeline tab: dispatching generative work
+
+The dashboard's **Pipeline** tab closes the loop from review to generation
+without leaving the browser. It shows progress (marks by mode and status,
+pending decisions per artifact), runs the validator suite on demand
+(persisted to `logs/validators-last.json`), and dispatches a headless CLI
+agent on the open marks.
+
+Agents are enumerated in the instance's `agents.toml` (template:
+`templates/agents.toml`): each entry is a command line — `claude -p …`,
+`codex exec …` — with `{prompt}` replaced by a self-contained briefing the
+server builds (the open marks as JSON, pointers to the governing docs/skill,
+and the ground rules: build, validate, flip marks to applied, commit with a
+`Generated-by:` trailer, never push). Jobs stream to
+`logs/agent-jobs/<id>.log` and appear in the tab with live status; the
+author owns the permission flags in the command line. Acceptance is
+unchanged: validators plus the review surfaces — dispatching an agent never
+bypasses them.
