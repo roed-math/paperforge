@@ -13,10 +13,21 @@ A custom inline element:
 <lean ref="Gq2.presentation">Gq2.presentation</lean>
 ```
 
-`xsl/custom-html.xsl` renders it as
-`<a class="lean-link" href="{lean_docs_base}/Gq2.presentation.html"
-data-lean-ref="Gq2.presentation">`. The `data-lean-ref` is the hook for a future
-hover/knowl enhancement. Validated by `validators/lean_links.py`.
+`xsl/custom-html.xsl` renders it as a pill-styled link into the doc-gen4
+find resolver (`../lean/<project>/find/?pattern=<ref>#doc`), with
+`data-lean-ref` as the hook the inline-knowl layer uses (a badge click opens
+the declaration's docs entry in place when the build-time registry has it).
+
+**Multiple independent formalizations** (2026-07-12): `<lean project="name">`
+selects the docs subset and the CSS class `lean-proj-<name>` — each project
+gets a distinct badge color, so readers can tell the formalizations apart at
+a glance. Project-less badges use the `lean.docs.default.project` XSL param.
+tex2ptx emits these from repeatable `--lean-map PROJECT=PATH` args (with
+`--lean-badge-cap PROJECT=N` for repos whose proofs decompose one statement
+into many declarations), and `validators/lean_links.py` checks each badge
+against its own project's tree via `[inputs.formalizations.*]` in paper.toml.
+Badges whose project has no built docs degrade to inert pills automatically
+(the registry sweep in detail-ui.js).
 
 Follow-ups: add `<lean>` to the RELAX NG schema (else it fails validation once
 `jing` is installed); add a `custom-latex.xsl` template so it renders as a macro

@@ -8,11 +8,24 @@ instance_name = "gq2"          # short slug; used for output filenames
 [inputs]
 # The AI-written LaTeX draft. Also serves as a plagiarism baseline (see below).
 ai_draft = "inputs/draft/main.tex"
-# The Lean formalization: a lake project root (may be an absolute path elsewhere).
+# The PRIMARY Lean formalization: a lake project root (may be absolute).
+# Drives the axiom census, blueprint, and the default badge project.
 lean_project = "/Users/roed/claude/gq2-lean"
 # How <lean ref="X"> becomes a docs URL (doc-gen4 / Verso output). Sets the
 # `lean.docs.base` XSL param in custom-html.xsl.
 lean_docs_base = "https://roed.example/gq2-lean/docs/"
+
+# Additional independent formalizations. Badges carry project= and get
+# per-project colors (CSS class lean-proj-<name>); lean_links validates each
+# project's refs against its own tree; build-web passes each declmap via
+# --lean-map <name>=<declmap>. Mine the declmap with lean_declmap.py
+# --cite-styles suited to that repo's citation discipline, --exclude for
+# vendored trees, and cap badges via --lean-badge-cap when its proofs
+# decompose statements into many declarations.
+# [inputs.formalizations.other-model]
+# root = "formalizations/other-model"
+# module = "TheirModuleName"
+# declmap = "crosswalk/lean-decl-map-other.json"
 
 # Known historical snapshots of the paper (the draft is a moving target; the
 # formalization may cite an older version's numbering). Each snapshot gets a
