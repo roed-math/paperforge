@@ -92,6 +92,14 @@
       .pfm-saved { color:#15803d; font-size:.78rem; opacity:0;
         transition:opacity .25s }
       .pfm-saved.show { opacity:1 }
+      .pfm-q { width:1.5rem; border-radius:999px !important; font-weight:700;
+        color:#5c6470 }
+      .pfm-q.open { border-color:#2563eb; color:#2563eb }
+      .pfm-help { background:rgba(128,128,128,.08); border-radius:6px;
+        padding:.45rem .6rem; margin-top:.4rem; font-size:.8rem;
+        line-height:1.45 }
+      .pfm-help-row { margin:.15rem 0 }
+      .pfm-help-row b { font-weight:700 }
       .pfm-ref { color:#2563eb; border-bottom:1px dotted #2563eb }
       .pfm-strip { position:fixed; bottom:1rem; left:1rem; z-index:1100;
         display:flex; gap:.5rem; align-items:center; background:#fff;
@@ -173,7 +181,7 @@
           if (!await decide({ artifact: it.artifact, id: it.id, status: c }))
             return;
           it.status = c;
-          row.querySelectorAll("button").forEach(x =>
+          row.querySelectorAll("button:not(.pfm-q)").forEach(x =>
             x.classList.remove("sel"));
           b.classList.add("sel");
           const nc = COLORS[c] || "#5c6470";
@@ -184,6 +192,29 @@
           updateStrip();
         };
         row.appendChild(b);
+      }
+      // knowl-style legend: a ? on the choice row expands, in place, what
+      // each option means (title tooltips alone are too easy to miss)
+      const helps = it.choices.filter(c => it.choice_help &&
+                                           it.choice_help[c]);
+      if (helps.length) {
+        const q = el("button", "pfm-q", "?");
+        q.title = "what do these options mean?";
+        let legend = null;
+        q.onclick = () => {
+          if (legend) { legend.remove(); legend = null;
+                        q.classList.remove("open"); return; }
+          legend = el("div", "pfm-help");
+          for (const c of helps) {
+            const d = el("div", "pfm-help-row");
+            d.appendChild(el("b", null, c));
+            d.appendChild(el("span", null, " — " + it.choice_help[c]));
+            legend.appendChild(d);
+          }
+          row.insertAdjacentElement("afterend", legend);
+          q.classList.add("open");
+        };
+        row.appendChild(q);
       }
       p.appendChild(row);
       const nrow = el("div", "pfm-row");
