@@ -35,16 +35,17 @@
   // a `show-dl-N` class on a container — body for the global slider, the
   // proof element for the local button; CSS does the rest).
   function setTierClasses(container, level) {
-    for (var l = 2; l <= 9; l++) {
+    for (var l = 1; l <= 9; l++) {
       container.classList.toggle("show-dl-" + l, l <= level);
     }
   }
 
   // Header controls, mounted in the sticky navbar:
   //   Detail [range] n/max [manual]   [?]
-  // Level 0 = everything collapsed; level 1 = proofs/remark knowls open;
-  // level 2+ = woven detail-tier paragraphs. "manual" replays the reader's
-  // own open/close choices (recorded continuously, kept in localStorage).
+  // Level 0 = everything collapsed, terse statements; level 1 = proofs and
+  // remark knowls open + statement detail tiers (detail-level="1");
+  // level 2+ = woven proof detail-tier paragraphs. "manual" replays the
+  // reader's own open/close choices (recorded continuously, in localStorage).
   // [?] toggles notation links for readers who find the hovers distracting.
   var LS = {
     mode: "pf-detail-mode",            // "manual" | "0".."9"
@@ -182,6 +183,51 @@
         tiers.forEach(function (d) {
           if (d.tagName === "DETAILS") d.open = levelOf(d) <= cur;
         });
+        label();
+      });
+      label();
+    });
+  }
+
+  // Statement-local details: a theorem-like block whose STATEMENT carries
+  // tier paragraphs (detail-level="1") gets the same stepper as proofs,
+  // placed just before the first hidden tier — the terse statement expands
+  // in place. (PreTeXt emits no statement wrapper in HTML: statement
+  // paragraphs are direct article children; proof tiers live inside the
+  // reparented <details> and are excluded.)
+  function wireStatementDetails() {
+    var arts = Array.prototype.slice.call(
+      document.querySelectorAll("article.theorem-like, " +
+        "article.definition-like, article.remark-like"));
+    arts.forEach(function (art) {
+      var tiers = Array.prototype.slice.call(
+        art.querySelectorAll('[class*="detail-level-"]')).filter(
+          function (d) { return !d.closest("details"); });
+      if (!tiers.length) return;
+      var levels = [];
+      tiers.forEach(function (d) {
+        var l = levelOf(d);
+        if (levels.indexOf(l) < 0) levels.push(l);
+      });
+      levels.sort(function (a, b) { return a - b; });
+      var btn = document.createElement("button");
+      btn.className = "detail-next-btn detail-stmt-btn";
+      tiers[0].insertAdjacentElement("beforebegin", btn);
+      var cur = 0;
+      function nextLevel() {
+        for (var i = 0; i < levels.length; i++)
+          if (levels[i] > cur) return levels[i];
+        return null;
+      }
+      function label() {
+        btn.textContent = nextLevel() ? "▸ details" : "▾ less";
+      }
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var nxt = nextLevel();
+        cur = nxt !== null ? nxt : 0;
+        setTierClasses(art, cur);
         label();
       });
       label();
@@ -406,6 +452,7 @@
     hideTocOnLoad();
     buildHeaderControls();
     wireProofDetails();
+    wireStatementDetails();
     wireNotation();
     wireLeanKnowls();
     wireSectionSummaries();

@@ -61,6 +61,12 @@
 .ptx-content a.internal:hover, .ptx-content .xref:hover {
   text-decoration-color: #111111;
 }
+/* knowl links already carry the theme's state-aware dotted border (hidden
+   on :hover/:focus/[open]) — adding our underline gave them a double line
+   that flickered with focus. One affordance only. */
+.ptx-content a.xref[data-knowl], .ptx-content a.xref[data-knowl]:hover {
+  text-decoration: none;
+}
 
 /* -- 3. quiet knowls: light gray field instead of borders/boxes -- */
 .ptx-content details.born-hidden-knowl {

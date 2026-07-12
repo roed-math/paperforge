@@ -108,11 +108,17 @@ article.theorem-like > .lean-link::before { content: "⚙ "; }
 }
 .detail-next-btn:hover { background: #ececec; }
 
-/* inline detail tiers (e.g. <p detail-level="2">): hidden until a container
-   (body via the slider, or a proof via its details button) enables them */
-.para.detail-level-2, .para.detail-level-3, .para.detail-level-4 { display: none; }
-.show-dl-2 .para.detail-level-2, .show-dl-3 .para.detail-level-3,
-.show-dl-4 .para.detail-level-4 { display: block; }
+/* inline detail tiers: hidden until a container (body via the slider, a
+   proof via its details button, or a statement via its own button) enables
+   them. Level 1 = statement detail; levels 2+ = proof detail. */
+.para.detail-level-1, .para.detail-level-2,
+.para.detail-level-3, .para.detail-level-4 { display: none; }
+.show-dl-1 .para.detail-level-1, .show-dl-2 .para.detail-level-2,
+.show-dl-3 .para.detail-level-3, .show-dl-4 .para.detail-level-4 {
+  display: block; }
+
+/* the statement stepper sits on its own line at the end of the statement */
+.detail-next-btn.detail-stmt-btn { display: block; margin: .3em 0 .1em; }
 
 /* the details button sits on the Proof line, only while the proof is open */
 .detail-next-btn { display: inline-block; margin: 0 0 0 .9em;
