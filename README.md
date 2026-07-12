@@ -77,6 +77,46 @@ ad-hoc session work; when an old snapshot exists as .tex, `tex2ptx
 --numbering` replaces it. Skills are SKILL.md specs consumed by Claude in
 session (not yet installed as slash commands).
 
+## AI and mathematical writing
+
+paperforge produces AI-assisted mathematics, so its design answers to an
+active community conversation and a fast-moving policy landscape.
+
+**Publisher policies.** [docs/AI-POLICIES.md](docs/AI-POLICIES.md) surveys
+how mathematics publishers (AMS, SIAM, Elsevier, Springer, Wiley,
+Taylor & Francis, Cambridge, arXiv, …) treat AI-assisted writing — what must
+be disclosed, in what form, and what is prohibited — and how paperforge's
+provenance record is designed to generate the required disclosures
+mechanically.
+
+**Discussions worth reading.**
+
+- Terence Tao, [*Machine-Assisted Proof*](https://www.ams.org/notices/202501/rnoti-p6.pdf),
+  Notices of the AMS, January 2025 — the standard survey of how proof
+  assistants, ML, and LLMs are entering research practice; see also his
+  running [machine-assisted proof posts](https://terrytao.wordpress.com/tag/machine-assisted-proof/).
+- The Bulletin of the AMS double special issue
+  [*Will machines change mathematics?*](https://www.ams.org/journals/bull/2024-61-02/S0273-0979-2024-01836-9/viewer/)
+  (April and July 2024) — perspectives from Avigad
+  ([*Mathematics and the formal turn*](https://arxiv.org/abs/2311.00007)),
+  Venkatesh, Granville, Cheng, Harris, and the Buzzard–Commelin–Topaz and
+  Shulman formalization essays.
+- AMS white paper,
+  [*Artificial Intelligence: Publishing in Mathematics*](https://www.ams.org/about-us/CPub_AI-WhitePaper.pdf)
+  — the society's own analysis of what AI assistance means for its journals.
+- Steinberger et al.,
+  [*Using Generative AI for Literature Searches and Scholarly Writing*](https://www.ams.org/notices/202401/rnoti-p93.pdf),
+  Notices of the AMS, January 2024 — the integrity risks (hallucinated
+  citations above all) that several of paperforge's validators exist to
+  counter.
+- Michael Harris's [Silicon Reckoner](https://siliconreckoner.substack.com/)
+  — a sustained critical counterpoint on the automation of mathematics.
+- Empirics on the policy gap:
+  [*Academic journals' AI policies fail to curb the surge in AI-assisted academic writing*](https://arxiv.org/abs/2512.06705)
+  and [Academ-AI](https://arxiv.org/abs/2411.15218), documenting undisclosed
+  use — the failure mode paperforge's write-time provenance is built to make
+  impossible.
+
 ## License
 
 GPL v3 or (at your option) any later version — see [LICENSE](LICENSE).
