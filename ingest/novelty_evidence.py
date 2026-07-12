@@ -64,7 +64,7 @@ def collect_novel_defs(lean_root: Path, known_path: Path, atlas_path: Path):
         return " ".join(lines_cache[f][ln - 1:ln - 1 + n])
 
     out = []
-    for full, doc, f, ln, _private in dm.iter_decls(lean_root):
+    for full, doc, f, ln, _private, _kind in dm.iter_decls(lean_root):
         s = sig(str(f), ln)
         kind = s.split()[0] if s.split() else "?"
         if kind not in ("def", "structure", "abbrev"):

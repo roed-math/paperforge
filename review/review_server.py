@@ -1039,6 +1039,13 @@ def progress_snapshot() -> dict:
 # ---------------------------------------------------------------- server
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # review assets change mid-session (rebuilds, registry regens):
+        # force revalidation so the browser never reviews stale UI
+        if self.path.split("?")[0].endswith((".js", ".css", ".html")):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def _json(self, obj, code=200):
         body = json.dumps(obj).encode()
         self.send_response(code)

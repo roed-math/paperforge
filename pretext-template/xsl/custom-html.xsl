@@ -16,30 +16,39 @@
   <xsl:param name="html.js.extra"  select="'detail-ui.js'"/>
 
   <!-- PLACEHOLDER: paper-init sets these from paper.toml [inputs]
-       lean_docs_base (+ optional suffix). With doc-gen4's find resolver the
-       convention is base '../lean/<project>/find/?pattern=' and suffix
-       '#doc' (relative from /paper/, working deployed and locally). -->
-  <xsl:param name="lean.docs.base" select="'@@LEAN_DOCS_BASE@@'"/>
+       (docs root '../lean/', default project name). -->
+  <xsl:param name="lean.docs.root" select="'@@LEAN_DOCS_ROOT@@'"/>
+  <xsl:param name="lean.docs.default.project" select="'@@LEAN_DEFAULT_PROJECT@@'"/>
   <xsl:param name="lean.docs.suffix" select="'#doc'"/>
 
   <!-- (1) Inline <lean ref="Namespace.decl">label</lean> -> link to the
-       formalization, tagged for a later hover/knowl enhancement. A badge
-       carrying @nodocs (e.g. a private declaration, which doc-gen4 skips)
-       renders as plain text with a tooltip instead of a dead link. -->
+       formalization, tagged for a later hover/knowl enhancement. Distinct
+       projects get distinct classes (lean-proj-*) so independent
+       formalizations are visually distinguishable. A badge carrying
+       @nodocs (e.g. a private declaration, which doc-gen4 skips) renders
+       as plain text with a tooltip instead of a dead link. -->
   <xsl:template match="lean">
+    <xsl:variable name="proj">
+      <xsl:choose>
+        <xsl:when test="@project"><xsl:value-of select="@project"/></xsl:when>
+        <xsl:otherwise>
+          <xsl:value-of select="$lean.docs.default.project"/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
     <xsl:choose>
       <xsl:when test="@nodocs">
-        <span class="lean-link lean-nolink"
-              data-lean-ref="{@ref}"
-              title="Formalized as {@ref} ({@nodocs} declaration — no documentation page)">
+        <span class="lean-link lean-nolink lean-proj-{$proj}"
+              data-lean-ref="{@ref}" data-lean-project="{$proj}"
+              title="Formalized as {@ref} in {$proj} ({@nodocs} declaration — no documentation page)">
           <xsl:apply-templates/>
         </span>
       </xsl:when>
       <xsl:otherwise>
-        <a class="lean-link"
-           href="{concat($lean.docs.base, @ref, $lean.docs.suffix)}"
-           data-lean-ref="{@ref}"
-           title="Formalized as {@ref}">
+        <a class="lean-link lean-proj-{$proj}"
+           href="{concat($lean.docs.root, $proj, '/find/?pattern=', @ref, $lean.docs.suffix)}"
+           data-lean-ref="{@ref}" data-lean-project="{$proj}"
+           title="Formalized as {@ref} in {$proj}">
           <xsl:apply-templates/>
         </a>
       </xsl:otherwise>

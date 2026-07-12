@@ -22,16 +22,19 @@ from lxml import html as lh
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("instance", type=Path, nargs="?", default=Path.cwd())
-    ap.add_argument("--docs", default="output/leandocs/gq2-lean",
+    ap.add_argument("--docs", default="output/leandocs/gq2-claude",
                     help="assembled doc-gen4 subset (relative to instance)")
-    ap.add_argument("--web-prefix", default="../lean/gq2-lean/",
+    ap.add_argument("--web-prefix", default="../lean/gq2-claude/",
                     help="URL of the docs subset relative to the paper page")
+    ap.add_argument("--declmap", default="crosswalk/lean-decl-map.json",
+                    help="tag -> decl-links JSON naming the badged decls "
+                         "this registry should cover")
     ap.add_argument("--out", default="output/web/lean-knowls.js")
     args = ap.parse_args()
     root = args.instance.resolve()
     docs = root / args.docs
 
-    declmap = json.load(open(root / "crosswalk/lean-decl-map.json"))
+    declmap = json.load(open(root / args.declmap))
     entries = [e for v in declmap.values() for e in v]
     # private decls have no doc-gen4 page by design; the paper renders their
     # badges unlinked (tex2ptx @nodocs), so they are not "missing" here

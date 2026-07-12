@@ -510,8 +510,9 @@ class RefMap:
 class Ctx:
     refs: RefMap
     num: Numbering
-    lean_map: dict = field(default_factory=dict)  # tag -> [{"decl": ...}, ...]
+    lean_map: dict = field(default_factory=dict)  # project -> tag -> [recs]
     lean_ann: dict = field(default_factory=dict)  # decl -> brief badge label
+    lean_caps: dict = field(default_factory=dict)  # project -> max badges/tag
     out: list[str] = field(default_factory=list)
     indent: int = 0
 
@@ -662,18 +663,31 @@ def convert_theoremlike(env: str, body: str, ctx: Ctx) -> None:
     # (block badge in HTML, dropped in the arXiv/latex conversion). Badge
     # text is "Lean", with a brief parenthetical to disambiguate when one
     # statement has several declarations; the full name stays in the tooltip.
+    # Formalization badges, one set per project (multiple independent
+    # formalizations get visually distinct badges — see the XSL/CSS).
     # private decls have no doc-gen4 page and are internal to the proof
     # development — no badge at all (author decision 2026-07-11). The XSL
     # still renders any <lean nodocs=".."> unlinked, as the robust default
     # for other sources of doc gaps.
-    decls = [r for r in ctx.lean_map.get(tag, []) if not r.get("private")]
-    for rec in decls:
-        if len(decls) == 1:
-            text = "Lean"
-        else:
-            ann = ctx.lean_ann.get(rec["decl"]) or rec["decl"].rsplit(".", 1)[-1]
-            text = f"Lean ({ann})"
-        ctx.emit(f'<lean ref="{rec["decl"]}">{text}</lean>')
+    for proj, tag_map in ctx.lean_map.items():
+        decls = [r for r in tag_map.get(tag, []) if not r.get("private")]
+        cap = ctx.lean_caps.get(proj)
+        if cap and len(decls) > cap:
+            # keep the decls the formalization itself flags as THE
+            # statement, then real statements over defs, in file order
+            decls = sorted(decls, key=lambda r: (
+                not r.get("flagged"),
+                r.get("kind") not in ("theorem", "lemma"),
+                r.get("file", ""), r.get("line", 0)))[:cap]
+        pattr = f' project="{proj}"' if proj else ""
+        for rec in decls:
+            if len(decls) == 1:
+                text = "Lean"
+            else:
+                ann = (ctx.lean_ann.get(rec["decl"])
+                       or rec["decl"].rsplit(".", 1)[-1])
+                text = f"Lean ({ann})"
+            ctx.emit(f'<lean{pattr} ref="{rec["decl"]}">{text}</lean>')
     ctx.indent -= 1
     ctx.emit(f"</{PTX_THM[env]}>")
     set_block(_CURRENT_DIVISION[0])     # back to division grain
@@ -914,9 +928,19 @@ def main() -> int:
     ap.add_argument("--lean-annotations", type=Path,
                     help="optional {annotations: {decl: brief label}} sidecar "
                          "for disambiguating badges on multi-decl statements")
-    ap.add_argument("--lean-map", type=Path,
+    ap.add_argument("--lean-map", action="append", default=[],
+                    dest="lean_maps", metavar="[PROJECT=]PATH",
                     help="tag -> decl-links JSON (from lean_declmap.py); "
-                         "emits <lean> badges on matching statements")
+                         "emits <lean> badges on matching statements. "
+                         "Repeatable: PROJECT=PATH badges each independent "
+                         "formalization distinctly (per-project colors and "
+                         "doc links); a bare PATH is the unnamed default "
+                         "project")
+    ap.add_argument("--lean-badge-cap", action="append", default=[],
+                    dest="lean_caps", metavar="PROJECT=N",
+                    help="at most N badges per statement for this project "
+                         "(picks flagged statements first, then "
+                         "theorems/lemmas, in file order)")
     ap.add_argument("--notation-map", type=Path,
                     help="notation map JSON; wraps tracked notation in math "
                          "with \\notn{key}{...} at conversion time")
@@ -954,7 +978,14 @@ def main() -> int:
     labels = set(LABEL_RE.findall(tex)) | set()
     refs = RefMap(labels)
     num = Numbering()
-    lean_map = json.load(open(args.lean_map)) if args.lean_map else {}
+    lean_map: dict[str, dict] = {}
+    for spec in args.lean_maps:
+        proj, _, path = spec.rpartition("=")
+        lean_map[proj] = json.load(open(path))
+    lean_caps: dict[str, int] = {}
+    for spec in args.lean_caps:
+        proj, _, n = spec.rpartition("=")
+        lean_caps[proj] = int(n)
     lean_ann = (json.load(open(args.lean_annotations)).get("annotations", {})
                 if args.lean_annotations and args.lean_annotations.exists()
                 else {})
@@ -1006,7 +1037,7 @@ def main() -> int:
         tag = tagify(s["label"]) if s["label"] else "sec-" + slugify(s["title"])
         num.record(tag, el, s["label"], disp)
         set_division(tag)               # scoped notation wrapping
-        ctx = Ctx(refs, num, lean_map, lean_ann)
+        ctx = Ctx(refs, num, lean_map, lean_ann, lean_caps)
         ctx.emit(f'<{el} xml:id="{tag}">')
         ctx.indent += 1
         ctx.emit(f"<title>{convert_inline(s['title'], refs)}</title>")

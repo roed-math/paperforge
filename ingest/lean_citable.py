@@ -87,7 +87,7 @@ def main() -> int:
         return "\n".join(lines_cache[f][ln - 1:ln - 1 + n])
 
     rows = []
-    for full, doc, f, ln, _private in dm.iter_decls(args.lean_root):
+    for full, doc, f, ln, _private, _kind in dm.iter_decls(args.lean_root):
         if full in covered or full.rsplit(".", 1)[-1] in {
                 n.rsplit(".", 1)[-1] for n in covered}:
             continue

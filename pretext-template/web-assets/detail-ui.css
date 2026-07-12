@@ -64,6 +64,13 @@ article.theorem-like > .lean-link, section > .lean-link {
   background: rgba(40,160,90,.08); text-decoration: none;
 }
 article.theorem-like > .lean-link::before { content: "⚙ "; }
+/* Two independent formalizations, distinguished by color:
+   gq2-claude (the GQ2 library) keeps the green above;
+   gq2-gpt (Q2Presentation) gets indigo. Tooltips name the project. */
+.ptx-content .lean-link.lean-proj-gq2-gpt {
+  border-color: rgba(55, 80, 180, 0.45);
+  background: rgba(70, 100, 220, 0.08);
+}
 /* declarations without a docs page (private): same pill, visibly inert —
    dashed outline, help cursor, tooltip carries the explanation */
 .ptx-content .lean-link.lean-nolink {
