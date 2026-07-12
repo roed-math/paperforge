@@ -1,9 +1,14 @@
 # The paper view as the editor (design)
 
-Status: design note, 2026-07-12. The review process has grown into a
-specialized editor; this note reorients the tooling around that fact. The
-**paper view is the primary surface**; the dashboard demotes to a project
-drawer for things that are inherently list-shaped.
+Status: designed and **built through phase 3** (2026-07-12): the strip
+cockpit, margin statement editors, the tex2ptx source map, and the lane-1
+block editor (✎ on every mapped statement/proof; splice + rebuild +
+validate as a tracked job; structural edits deflect to lane 2 with an
+agent handoff). Lane-2 briefing refinement remains open. The review
+process has grown into a specialized editor; this note reorients the
+tooling around that fact. The **paper view is the primary surface**; the
+dashboard demotes to a project drawer for things that are inherently
+list-shaped.
 
 ## What already lives in the paper view
 

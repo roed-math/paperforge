@@ -843,6 +843,78 @@ def reparent_proofs(lines: list[str]) -> list[str]:
 
 # ------------------------------------------------------------------ driver
 
+# ------------------------------------------------------------- source map
+# Draft byte-spans for every labeled statement (and its proof), so the
+# paper-view editor can extract a block's LaTeX from the draft and splice
+# an edit back (docs/EDITOR.md, lane 1). Labels are unique, so this is a
+# self-contained post-pass over the parse text — no offset threading
+# through the converter.
+
+def build_source_map(parse_tex: str, orig_tex: str) -> dict:
+    parse_lines = parse_tex.split("\n")
+    orig_lines = orig_tex.split("\n")
+    # line starts in each text (line structure is preserved by
+    # strip_comments and the \MarkedDem expansion)
+    pstart, ostart, acc_p, acc_o = [], [], 0, 0
+    for pl, ol in zip(parse_lines, orig_lines):
+        pstart.append(acc_p)
+        ostart.append(acc_o)
+        acc_p += len(pl) + 1
+        acc_o += len(ol) + 1
+    # a parse line is trustworthy when it is a prefix of the original
+    # (comment stripping truncates; the \MarkedDem expansion rewrites)
+    clean = [ol[:len(pl)] == pl for pl, ol in zip(parse_lines, orig_lines)]
+
+    import bisect
+    import hashlib
+
+    def to_orig(off: int) -> int | None:
+        ln = bisect.bisect_right(pstart, off) - 1
+        if ln >= len(clean) or not clean[ln]:
+            return None
+        return ostart[ln] + (off - pstart[ln])
+
+    env_names = "|".join(THEOREM_ENVS)
+    out: dict = {}
+    for m in re.finditer(r"\\begin\{(" + env_names + r")\}", parse_tex):
+        env = m.group(1)
+        try:
+            end = find_env_end(parse_tex, m.end(), env)
+        except ValueError:
+            continue
+        body_end = parse_tex.rindex("\\end{", m.end(), end)
+        body = parse_tex[m.end():body_end]
+        _title, p = read_opt(body, 0)
+        label, p = read_label(body, p)
+        if not label:
+            continue
+        rec: dict = {}
+        s0, s1 = to_orig(m.end() + p), to_orig(body_end)
+        if s0 is not None and s1 is not None:
+            rec["statement"] = [s0, s1]
+        prm = re.compile(r"\s*\\begin\{proof\}").match(parse_tex, end)
+        if prm:
+            try:
+                pend = find_env_end(parse_tex, prm.end(), "proof")
+                pbody_end = parse_tex.rindex("\\end{", prm.end(), pend)
+                pb = parse_tex[prm.end():pbody_end]
+                _pt, pp = read_opt(pb, 0)
+                p0, p1 = to_orig(prm.end() + pp), to_orig(pbody_end)
+                if p0 is not None and p1 is not None:
+                    rec["proof"] = [p0, p1]
+            except ValueError:
+                pass
+        if rec:
+            for part, (a, b) in rec.items():
+                rec[part] = {
+                    "start": a, "end": b,
+                    "sha": hashlib.sha1(
+                        orig_tex[a:b].encode()).hexdigest()[:16],
+                }
+            out[tagify(label)] = rec
+    return out
+
+
 SEC_RE = re.compile(r"\\(section|subsection)\*?\{")
 SUBSUBSEC_RE = re.compile(r"\\subsubsection\*?\{")
 
@@ -941,6 +1013,9 @@ def main() -> int:
                     help="at most N badges per statement for this project "
                          "(picks flagged statements first, then "
                          "theorems/lemmas, in file order)")
+    ap.add_argument("--source-map", type=Path,
+                    help="write draft byte-spans for every labeled "
+                         "statement/proof (paper-view editor, lane 1)")
     ap.add_argument("--notation-map", type=Path,
                     help="notation map JSON; wraps tracked notation in math "
                          "with \\notn{key}{...} at conversion time")
@@ -1101,6 +1176,14 @@ def main() -> int:
             {"snapshot": args.snapshot, "source": str(args.texfile),
              "items": num.records}, indent=1))
         print(f"wrote {args.numbering} ({len(num.records)} items)")
+    if args.source_map:
+        smap = build_source_map(tex, args.texfile.read_text())
+        args.source_map.parent.mkdir(parents=True, exist_ok=True)
+        args.source_map.write_text(json.dumps(
+            {"draft": str(args.texfile), "spans": smap}, indent=1))
+        nproofs = sum(1 for r in smap.values() if "proof" in r)
+        print(f"wrote {args.source_map} ({len(smap)} statements, "
+              f"{nproofs} proofs)")
     if UNCLASSIFIED:
         n = sum(len(blocks) for blocks in UNCLASSIFIED.values())
         wl = (args.disambig.parent if args.disambig

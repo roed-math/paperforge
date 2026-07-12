@@ -966,7 +966,8 @@ def dispatch_job(task: str, agent: str, extra: str) -> tuple[dict | None, str]:
     try:
         proc = subprocess.Popen(
             cmd, cwd=ROOT, stdout=log_fh, stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL, start_new_session=True)
+            stdin=subprocess.DEVNULL, start_new_session=True,
+            env=_job_env())
     except OSError as e:
         log_fh.write(f"FAILED TO START: {e}\n")
         log_fh.close()
@@ -1010,6 +1011,128 @@ def run_validators() -> dict:
            "tail": out[-4000:]}
     VALIDATE_LAST.parent.mkdir(parents=True, exist_ok=True)
     VALIDATE_LAST.write_text(json.dumps(rec, indent=1))
+    return rec
+
+
+# ------------------------------------------------------------ lane-1 edits
+# The paper-view editor (docs/EDITOR.md): source/*.ptx is generated, so an
+# edit extracts the block's LaTeX from the DRAFT via the tex2ptx source map
+# (crosswalk/source-map.json), and saving splices it back and rebuilds.
+# Slice hashes make staleness explicit: after any splice, every span after
+# the edit point stops matching until the rebuild regenerates the map.
+
+SOURCE_MAP = ROOT / "crosswalk" / "source-map.json"
+# structure changes a blind splice cannot guarantee: labels and
+# environment/sectioning boundaries (these route to lane 2 — an agent)
+_STRUCTURAL = re.compile(
+    r"\\label\{|\\begin\{(?:theorem|proposition|lemma|corollary|claim|"
+    r"definition|remark|proof|equation|align)\*?\}|\\(?:sub)*section\b")
+
+
+def _load_source_map() -> dict | None:
+    if not SOURCE_MAP.exists():
+        return None
+    return json.load(open(SOURCE_MAP))
+
+
+def _slice_rec(sm: dict, tag: str, part: str):
+    rec = (sm.get("spans") or {}).get(tag, {}).get(part)
+    if not rec:
+        return None, None, None
+    import hashlib
+    draft = Path(sm["draft"])
+    text = draft.read_text()
+    sl = text[rec["start"]:rec["end"]]
+    cur = hashlib.sha1(sl.encode()).hexdigest()[:16]
+    return sl, cur, rec
+
+
+def edit_extract(tag: str, part: str) -> dict:
+    sm = _load_source_map()
+    if sm is None:
+        return {"error": "no source map — rebuild with --source-map"}
+    sl, cur, rec = _slice_rec(sm, tag, part)
+    if rec is None:
+        return {"error": f"no {part} span for {tag}"}
+    return {"tag": tag, "part": part, "latex": sl, "sha": cur,
+            "stale": cur != rec["sha"], "file": sm["draft"]}
+
+
+def edit_save(tag: str, part: str, latex: str, sha: str) -> dict:
+    sm = _load_source_map()
+    if sm is None:
+        return {"error": "no source map"}
+    sl, cur, rec = _slice_rec(sm, tag, part)
+    if rec is None:
+        return {"error": f"no {part} span for {tag}"}
+    if cur != sha:
+        return {"error": "stale: the draft changed under this block — "
+                         "reopen the editor", "stale": True}
+    # structural delta => lane 2: an agent applies it with the invariants
+    old_hits = sorted(m.group(0) for m in _STRUCTURAL.finditer(sl))
+    new_hits = sorted(m.group(0) for m in _STRUCTURAL.finditer(latex))
+    if old_hits != new_hits:
+        return {"lane2": True,
+                "reason": "the edit changes labels/environments/sectioning "
+                          "— a blind splice cannot keep tags and numbering "
+                          "stable; send it to an agent instead"}
+    draft = Path(sm["draft"])
+    text = draft.read_text()
+    if sl != text[rec["start"]:rec["end"]]:
+        return {"error": "stale: concurrent change", "stale": True}
+    draft.write_text(text[:rec["start"]] + latex + text[rec["end"]:])
+    job = run_rebuild_job()
+    return {"ok": True, "job": job}
+
+
+def _job_env() -> dict:
+    """Subprocess env for jobs: the server's interpreter dir leads PATH so
+    `python3`/`pretext` in build scripts resolve to the same stack the
+    server runs on (launch configs pin the interpreter; plain `python3`
+    would fall back to a system python without tomllib/lxml)."""
+    import sys
+    env = dict(__import__("os").environ)
+    env["PATH"] = str(Path(sys.executable).parent) + ":" + env.get("PATH", "")
+    return env
+
+
+def run_rebuild_job() -> dict:
+    """Rebuild + validate as a tracked job (same machinery as agents)."""
+    import subprocess
+    import sys
+    import threading
+    import time
+
+    jid = time.strftime("build-%Y%m%d-%H%M%S")
+    if jid in JOBS:
+        jid += f"-{len(JOBS)}"
+    JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = JOBS_DIR / f"{jid}.log"
+    log_fh = open(log_path, "w")
+    env = _job_env()
+    env["PYTHONPATH"] = str(HERE.parent / "validators")
+    cmd = ["bash", "-c",
+           f"scripts/build-web.sh && {sys.executable} -m "
+           "paperforge_validators.run_all"]
+    proc = subprocess.Popen(cmd, cwd=ROOT, stdout=log_fh,
+                            stderr=subprocess.STDOUT,
+                            stdin=subprocess.DEVNULL, env=env,
+                            start_new_session=True)
+    rec = {"id": jid, "task": "rebuild", "task_label": "rebuild + validate",
+           "agent": "build", "status": "running",
+           "started": time.ctime(), "finished": None, "returncode": None,
+           "log": str(log_path.relative_to(ROOT))}
+    JOBS[jid] = rec
+
+    def reap():
+        rc = proc.wait()
+        log_fh.close()
+        rec["status"] = "done" if rc == 0 else "failed"
+        rec["returncode"] = rc
+        rec["finished"] = time.ctime()
+        (JOBS_DIR / f"{jid}.json").write_text(json.dumps(rec, indent=1))
+
+    threading.Thread(target=reap, daemon=True).start()
     return rec
 
 
@@ -1095,6 +1218,15 @@ class Handler(SimpleHTTPRequestHandler):
                                "tail": tail})
         if url.path == "/api/progress":
             return self._json(progress_snapshot())
+        if url.path == "/api/edit-map":
+            sm = _load_source_map()
+            return self._json({
+                "tags": {t: sorted(r) for t, r in
+                         (sm.get("spans") or {}).items()} if sm else {}})
+        if url.path == "/api/edit":
+            q = parse_qs(url.query)
+            return self._json(edit_extract(q.get("tag", [""])[0],
+                                           q.get("part", ["statement"])[0]))
         if url.path == "/api/items":
             q = parse_qs(url.query)
             a = ADAPTERS.get(q.get("artifact", [""])[0])
@@ -1173,6 +1305,14 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if url.path == "/review-paper-edit.js":
+            body = (HERE / "paper-edit.js").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if url.path == "/api/marks":
             q = parse_qs(url.query)
             page = q.get("page", [None])[0]
@@ -1218,7 +1358,8 @@ class Handler(SimpleHTTPRequestHandler):
                     "</body>",
                     '<script src="/review-paper-tags.js"></script>'
                     '<script src="/review-paper-margin.js"></script>'
-                    '<script src="/review-paper-marks.js"></script></body>', 1)
+                    '<script src="/review-paper-marks.js"></script>'
+                    '<script src="/review-paper-edit.js"></script></body>', 1)
                 body = html.encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -1245,6 +1386,11 @@ class Handler(SimpleHTTPRequestHandler):
             if rec is None:
                 return self._json({"error": err}, 400)
             return self._json({"ok": True, "job": rec})
+        if self.path == "/api/edit":
+            out = edit_save(req.get("tag", ""),
+                            req.get("part", "statement"),
+                            req.get("latex", ""), req.get("sha", ""))
+            return self._json(out, 409 if out.get("stale") else 200)
         if self.path == "/api/validate":
             try:
                 return self._json(run_validators())

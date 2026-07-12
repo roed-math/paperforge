@@ -14,6 +14,7 @@ PF=@@PAPERFORGE_ROOT@@
 # proofs decompose one statement into many declarations.
 python3 $PF/ingest/tex2ptx.py @@AI_DRAFT@@ \
     --out source --numbering crosswalk/numbering-current.json --snapshot current \
+    --source-map crosswalk/source-map.json \
     --lean-map @@LEAN_PROJECT_NAME@@=crosswalk/lean-decl-map.json \
     --lean-annotations crosswalk/lean-annotations.json \
     --notation-map notation/notation-map.json \
