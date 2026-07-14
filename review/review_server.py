@@ -360,7 +360,7 @@ class Novelty:
             c["author_note"] = note
         if text is not None:
             c["statement"] = text
-        json.dump(data, open(self.path, "w"), indent=1)
+        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
 
 
 class Followups:
@@ -457,7 +457,7 @@ class Followups:
             q["author_note"] = note
         if text is not None:
             q["statement"] = text
-        json.dump(data, open(self.path, "w"), indent=1)
+        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
 
 
 class Disambig:
@@ -517,7 +517,7 @@ class Disambig:
         data = json.load(open(self.path))
         if status:
             data[key][block] = status
-        json.dump(data, open(self.path, "w"), indent=1)
+        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
 
     def margin_anchor(self, it, tag, page):
         # a division-grain sense decision covers wrapped occurrences spread
@@ -596,7 +596,7 @@ class CitationNeeds:
             rec["decision"] = status
         if note is not None:
             rec["author_note"] = note
-        json.dump(data, open(self.path, "w"), indent=1)
+        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
 
     def margin_anchor(self, it, tag, page):
         # once an insertion cites the required works, the citing paragraph
@@ -679,7 +679,7 @@ class Known:
             rec["status"] = status
         if note is not None:
             rec["author_note"] = note
-        json.dump(data, open(self.path, "w"), indent=1)
+        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
 
 
 class Marks:
@@ -755,7 +755,7 @@ class Marks:
             "generator": "roed",
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        json.dump(data, open(self.path, "w"), indent=1)
+        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
         return mid, True
 
     def delete(self, mid: str) -> bool:
@@ -766,7 +766,7 @@ class Marks:
         if not m or m["status"] != "open":
             return False
         del data["marks"][mid]
-        json.dump(data, open(self.path, "w"), indent=1)
+        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
         return True
 
     def open_marks(self, page: str | None = None) -> list[dict]:
@@ -811,7 +811,7 @@ class Marks:
             m["author_note"] = note
         if text is not None:
             m["text"] = text
-        json.dump(data, open(self.path, "w"), indent=1)
+        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
 
 
 ADAPTERS = {a.name: a() for a in (Novelty, Followups, Disambig,
