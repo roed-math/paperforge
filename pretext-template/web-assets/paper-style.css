@@ -17,20 +17,53 @@
   --toc-border-color: #dddddd;
   --tocitem-highlight-background: #e8e8e8;
   --tocitem-highlight-text-color: #111111;
+  --activated-content-bg: #ececec;
+  /* paper-look palette (dark counterparts below) */
+  --paper-ink: #111111;
+  --paper-underline: #bbbbbb;
+  --paper-field: #f5f5f5;      /* born-hidden knowl field */
+  --paper-field-xref: #f7f7f7; /* injected xref knowl field */
+  --paper-layer: #ffffff;      /* nested knowl layer */
+  --paper-hairline: #dddddd;
+}
+:root.dark-mode {
+  --activated-content-bg: rgba(255, 255, 255, 0.08);
+  --paper-ink: #f2f2f2;
+  --paper-underline: #666666;
+  --paper-field: rgba(255, 255, 255, 0.06);
+  --paper-field-xref: rgba(255, 255, 255, 0.06);
+  --paper-layer: rgba(255, 255, 255, 0.10);
+  --paper-hairline: rgba(255, 255, 255, 0.25);
 }
 
-/* light TOC sidebar: a paper's margin, not a book's chrome */
-.ptx-sidebar .ptx-toc, .ptx-toc {
+/* the theme flashes the :target element for orientation after a fragment
+   jump; its 10s salmon fade reads as an error on a B/W page — keep the
+   affordance, neutral and brief */
+:target { animation-duration: 1.5s; }
+
+/* light TOC sidebar: a paper's margin, not a book's chrome (light mode
+   only — the theme's dark palette handles dark mode) */
+:root:not(.dark-mode) .ptx-sidebar .ptx-toc,
+:root:not(.dark-mode) .ptx-toc {
   background: #fafafa;
 }
-.ptx-toc .toc-item, .ptx-toc .toc-title-box a, .ptx-toc a {
+:root:not(.dark-mode) .ptx-toc .toc-item,
+:root:not(.dark-mode) .ptx-toc .toc-title-box a,
+:root:not(.dark-mode) .ptx-toc a {
   background: transparent;
   color: #222222;
 }
-.ptx-toc .toc-item.active, .ptx-toc .toc-current a {
+:root:not(.dark-mode) .ptx-toc .toc-item.active,
+:root:not(.dark-mode) .ptx-toc .toc-current a {
   background: #e8e8e8;
   color: #111111;
 }
+
+/* one-page build: prev/up/next render as permanently-disabled placeholders
+   (navbar and content footer) — hide them; a chunked build re-enables them
+   automatically since only .disabled is hidden */
+.ptx-navbar .treebuttons .button.disabled,
+.ptx-content-footer .button.disabled { display: none; }
 
 /* -- 2. wider content column: the theme hardcodes 696px on .ptx-content -- */
 .ptx-main > .ptx-content { max-width: 58rem; }
@@ -53,13 +86,13 @@
 
 /* -- 5 cont.: links quiet (papers are ink); keep affordance on hover -- */
 .ptx-content a.internal, .ptx-content .xref {
-  color: #111111;
+  color: var(--paper-ink);
   text-decoration: underline;
-  text-decoration-color: #bbbbbb;
+  text-decoration-color: var(--paper-underline);
   text-underline-offset: 2px;
 }
 .ptx-content a.internal:hover, .ptx-content .xref:hover {
-  text-decoration-color: #111111;
+  text-decoration-color: var(--paper-ink);
 }
 /* knowl links already carry the theme's state-aware dotted border (hidden
    on :hover/:focus/[open]) — adding our underline gave them a double line
@@ -71,19 +104,19 @@
 /* -- 3. quiet knowls: light gray field instead of borders/boxes -- */
 .ptx-content details.born-hidden-knowl {
   border: none;
-  background: #f5f5f5;
+  background: var(--paper-field);
   border-radius: 4px;
   padding: 0.35rem 0.7rem;
   margin: 0.6rem 0;
 }
 .ptx-content details.born-hidden-knowl > summary.knowl__link {
-  color: #111111;
+  color: var(--paper-ink);
   font-style: italic;
   text-decoration: none;
   list-style-position: outside;
 }
 .ptx-content details.born-hidden-knowl > summary.knowl__link .heading {
-  color: #111111;
+  color: var(--paper-ink);
 }
 .ptx-content details.born-hidden-knowl .knowl__content {
   border: none;
@@ -104,8 +137,8 @@
 .ptx-content div.knowl__content[id^="knowl-uid-"] details.born-hidden-knowl,
 .ptx-content div.knowl__content[id^="knowl-uid-"] .lean-knowl,
 .ptx-content div.knowl__content[id^="knowl-uid-"] .section-knowl {
-  background: #ffffff;
-  border: 1px solid #dddddd;
+  background: var(--paper-layer);
+  border: 1px solid var(--paper-hairline);
   border-radius: 4px;
   padding: 0.35rem 0.7rem;
 }
@@ -122,7 +155,7 @@
 
 /* xref preview knowls (click-to-open cross references) — same quiet field */
 .ptx-content .knowl__content {
-  background: #f7f7f7;
+  background: var(--paper-field-xref);
   border: none;
   box-shadow: none;
   border-radius: 4px;
