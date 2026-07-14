@@ -1261,6 +1261,26 @@ def load_insertions(d: Path) -> None:
 def apply_insertions(secs) -> int:
     '''Merge insertion fragments into the section line lists by anchor tag.'''
     n = 0
+    # section-grain pass first: a "section-after" fragment is a complete
+    # top-level division (single <section>/<appendix> root), emitted as its
+    # own division file + main.ptx include right after the anchor division.
+    # The anchor must be the xml:id of a top-level division.
+    import re as _re
+    for anchor, frags in INSERTIONS.items():
+        remaining = []
+        for pos, body in frags:
+            if pos != "section-after":
+                remaining.append((pos, body))
+                continue
+            k = next((i for i, (t, _, _) in enumerate(secs) if t == anchor), None)
+            mm = _re.search(r'<(section|appendix)\b[^>]*xml:id="([\w-]+)"', body)
+            if k is None or not mm:
+                warn(f"section-after insertion for {anchor}: anchor not a "
+                     f"top-level division or body lacks a division root — skipped")
+                continue
+            secs.insert(k + 1, (mm.group(2), mm.group(1), body.split("\n")))
+            n += 1
+        INSERTIONS[anchor] = remaining
     for k, (tag, el, lines) in enumerate(secs):
         text = "\n".join(lines)
         for anchor, frags in INSERTIONS.items():
