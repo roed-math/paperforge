@@ -39,6 +39,13 @@ open Informal
 """
 
 
+def align_rows(ch) -> str:
+    """<md>/<mdn> (align displays) -> a KaTeX aligned block."""
+    rows = [clean_math(r.text or "") for r in ch
+            if isinstance(r.tag, str) and etree.QName(r).localname == "mrow"]
+    return ("\\begin{aligned}" + " \\\\ ".join(rows) + "\\end{aligned}")
+
+
 def clean_math(s: str) -> str:
     """Verbatim paper LaTeX -> KaTeX-safe: strip \\notn wrappers, collapse ws."""
     for macro in (r"\notnfar", r"\notn"):
@@ -66,11 +73,19 @@ class Gen:
     def __init__(self, root: Path, declmap="crosswalk/lean-decl-map.json",
                  census="crosswalk/axiom-citations.json",
                  atlas="crosswalk/atlas-graph.json", module="GQ2",
-                 doc_title=None):
+                 doc_title=None, kind_map=None):
         self.root = root
         self.module = module
         self.doc_title = doc_title
+        # older VersoBlueprint branches register fewer directives (v4.28 has
+        # no `proposition`); map unsupported kinds to supported ones
+        self.kind_map = kind_map or {}
         self.declmap = json.load(open(root / declmap))
+        # equation-anchored decls keep their paper badges, but equations are
+        # not statements: they get no blueprint node (and hence no {uses}
+        # target — xrefs to them render as their printed number instead)
+        self.declmap = {t: v for t, v in self.declmap.items()
+                        if not t.startswith("eq-")}
         self.numbering = json.load(
             open(root / "crosswalk/numbering-current.json"))["items"]
         census_path = root / census if census and census != "none" else None
@@ -169,6 +184,8 @@ class Gen:
                 out.append(f"$`{clean_math(ch.text or '')}`")
             elif tag in ("me", "men"):
                 out.append(f"\n\n$$`{clean_math(ch.text or '')}`\n\n")
+            elif tag in ("md", "mdn"):
+                out.append(f"\n\n$$`{align_rows(ch)}`\n\n")
             elif tag == "xref":
                 out.append(self.xref(ch))
             elif tag == "nbsp":
@@ -231,6 +248,8 @@ class Gen:
                 parts.append("\n".join(items))
             elif tag in ("me", "men"):
                 parts.append(f"$$`{clean_math(ch.text or '')}`")
+            elif tag in ("md", "mdn"):
+                parts.append(f"$$`{align_rows(ch)}`")
         return "\n\n".join(p for p in parts if p)
 
     def proof_xref_uses(self, el, tag: str) -> list[str]:
@@ -258,6 +277,7 @@ class Gen:
         # one directory below the blueprint root, so ../../paper/ is stable
         head = (f"*[{rec['kind'].capitalize()} {rec['number']} of the "
                 f"paper](../../paper/paper.html#{tag}){title}.*")
+        kind = self.kind_map.get(kind, kind)
         # 'lemma' is a Lean keyword; VersoBlueprint registers the directive
         # with a trailing underscore
         directive = "lemma_" if kind == "lemma" else kind
@@ -418,13 +438,19 @@ def main():
                     help="Lean module the chapters import")
     ap.add_argument("--title", default="Blueprint: a profinite presentation "
                                        "of the absolute Galois group of ℚ₂")
+    ap.add_argument("--kind-map", action="append", default=[],
+                    metavar="FROM=TO",
+                    help="map a statement kind to another directive (e.g. "
+                         "proposition=theorem for VersoBlueprint branches "
+                         "that lack :::proposition)")
     args = ap.parse_args()
     root = args.instance.resolve()
     bp = args.blueprint_dir or root / "blueprint"
     out_lib = bp / args.project
     (out_lib / "Chapters").mkdir(parents=True, exist_ok=True)
     gen = Gen(root, declmap=args.declmap, census=args.census,
-              atlas=args.atlas, module=args.module, doc_title=args.title)
+              atlas=args.atlas, module=args.module, doc_title=args.title,
+              kind_map=dict(kv.split("=", 1) for kv in args.kind_map))
     chapters = gen.run(out_lib, args.project)
     print(f"wrote {len(chapters)} chapters -> {out_lib}/Chapters/ "
           f"(+ Blueprint.lean)")
