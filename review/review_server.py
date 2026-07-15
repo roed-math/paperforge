@@ -835,7 +835,10 @@ JOBS: dict[str, dict] = {}
 def load_agents() -> dict:
     if not AGENTS_TOML.exists():
         return {"agents": {}, "default": None}
+    try:
     import tomllib
+except ModuleNotFoundError:      # Python < 3.11
+    import tomli as tomllib
     with open(AGENTS_TOML, "rb") as f:
         cfg = tomllib.load(f)
     agents = {k: {"label": v.get("label", k), "command": v["command"]}

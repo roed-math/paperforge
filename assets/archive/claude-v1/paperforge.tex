@@ -1,0 +1,46 @@
+% paperforge.tex — the PaperForge mark and colophon, drawn in TikZ.
+% No image files needed (arXiv-friendly). Requires tikz; hyperref optional.
+%
+% Usage:  \input{paperforge.tex}
+%   \PaperForgeMark            inline mark, 1em tall, baseline-aligned
+%   \PaperForgeMark[2cm]       mark at a given height
+%   \PaperForgeColophon        "Built with PaperForge" line linking to the repo
+%
+% Colors can be overridden, e.g. for grayscale print:
+%   \colorlet{pfink}{black}\colorlet{pfember}{black!45}
+\newcommand{\PaperForgeRepoURL}{https://github.com/roed-math/paperforge}
+\definecolor{pfink}{HTML}{111111}
+\definecolor{pfember}{HTML}{EA580C}
+\makeatletter
+% Coordinates live on the same 100x100 grid as the SVG assets (y down).
+% The drawn mark spans y = 17..83, i.e. 66 grid units tall.
+\newcommand{\PaperForgeMark}[1][1em]{%
+  \pgfmathsetlengthmacro{\pf@u}{(#1)/66}%
+  \pgfmathsetlengthmacro{\pf@base}{-83*\pf@u}%
+  \begin{tikzpicture}[x=\pf@u, y=-\pf@u, baseline=\pf@base]
+    % page with dog-ear; text lines and QED square punched out
+    \fill[pfink, even odd rule]
+      (44,17) -- (61,17) -- (70,26) -- (70,47) -- (44,47) -- cycle
+      (49.5,24.7) rectangle (56.5,27.3)
+      (49.5,31.7) rectangle (64.5,34.3)
+      (49.5,38.7) rectangle (58.5,41.3)
+      (61.3,38.3) rectangle (64.7,41.7);
+    % ember fold flap
+    \fill[pfember] (62,18.6) -- (68.4,25) -- (62,25) -- cycle;
+    % anvil: face + horn, hardy hole punched; pedestal below
+    \fill[pfink, even odd rule]
+      (9,54.5) -- (25,52) -- (91,52) -- (91,66) -- (25,66) -- (9,58.5) -- cycle
+      (78,56) rectangle (84,62);
+    \fill[pfink] (43,65) -- (63,65) -- (72,83) -- (34,83) -- cycle;
+  \end{tikzpicture}%
+}
+\newcommand{\PaperForgeColophon}{%
+  \begingroup\footnotesize
+  \ifdefined\href
+    \noindent\href{\PaperForgeRepoURL}{\PaperForgeMark[1.5ex]\hspace{0.5em}Built with \textsc{PaperForge}}%
+  \else
+    \noindent\PaperForgeMark[1.5ex]\hspace{0.5em}Built with \textsc{PaperForge} (\texttt{\PaperForgeRepoURL})%
+  \fi
+  \endgroup
+}
+\makeatother

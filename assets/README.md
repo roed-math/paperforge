@@ -1,73 +1,52 @@
 # PaperForge visual identity
 
-A dog-eared page over a plain, ruler-drawn anvil, its last line closed with a
-QED square (`∎`). Ink is the paper template's `#111111`; ember is `#EA580C`
-(`#F97316` on dark grounds), used only on the page fold.
+The mark fuses a sheet of paper with an anvil: the lifted page corner continues
+into the anvil horn, so the two ideas read as one silhouette rather than two
+stacked icons. The system is deliberately one-color and uses cut-out geometry;
+it survives grayscale printing and works without a white box on arbitrary
+backgrounds.
 
-Presentation / rationale: the mark survives grayscale print, degrades to the
-anvil glyph below 20 px, and every "built with" form links back to this repo.
+The previous identity is preserved intact under [`archive/claude-v1/`](archive/claude-v1/).
 
 ## Files
 
 | file | use |
 |---|---|
-| `paperforge-mark.svg` | primary mark, light backgrounds |
-| `paperforge-mark-dark.svg` | mark for dark backgrounds |
-| `paperforge-mark-mono.svg` | one-color mark; inherits `currentColor`, fold becomes a punched notch |
-| `paperforge-logo.svg` | horizontal lockup with wordmark (serif system stack, `textLength`-pinned) |
-| `paperforge-icon.svg` / `paperforge-icon-512.png` | GitHub avatar / social preview |
-| `paperforge-glyph.svg` | anvil-only glyph for ≤20 px (favicon, badge icon) |
-| `paperforge-badge.svg` | "built with PaperForge" badge, 162×20, shields-style |
-| `paperforge.tex` | TikZ mark + `\PaperForgeColophon` for LaTeX/arXiv — no image files needed |
+| `paperforge-mark.svg` | primary charcoal mark for light backgrounds |
+| `paperforge-mark-dark.svg` | warm-white mark for dark backgrounds |
+| `paperforge-mark-mono.svg` | one-color mark that inherits CSS `currentColor` |
+| `paperforge-logo.svg` | horizontal mark and PaperForge wordmark |
+| `paperforge-icon.svg` / `paperforge-icon-512.png` | square avatar and social icon |
+| `paperforge-glyph.svg` | simplified small-size glyph or favicon source |
+| `paperforge-badge.svg` | 162x20 “Built with PaperForge” link badge |
+| `paperforge.tex` | TikZ mark and linked LaTeX colophon |
 
-## Attaching to a paper
+## Link back from a paper or project
 
-**README of an instance repo** (or any markdown):
+Markdown:
 
 ```markdown
-[![built with PaperForge](https://raw.githubusercontent.com/roed-math/paperforge/main/assets/paperforge-badge.svg)](https://github.com/roed-math/paperforge)
+[![Built with PaperForge](https://raw.githubusercontent.com/roed-math/paperforge/main/assets/paperforge-badge.svg)](https://github.com/roed-math/paperforge)
 ```
 
-**arXiv / print PDF** — copy `paperforge.tex` into the instance (a `paper-init`
-job), then:
-
-```latex
-\usepackage{tikz}      % preamble
-\input{paperforge.tex}
-...
-\PaperForgeColophon    % end of paper: mark + "Built with PaperForge", hyperlinked
-```
-
-For a grayscale print run: `\colorlet{pfink}{black}\colorlet{pfember}{black!45}`.
-The mark alone is `\PaperForgeMark[<height>]` (default 1em, baseline-aligned).
-
-**HTML paper footer** (PreTeXt web output):
+HTML:
 
 ```html
 <a href="https://github.com/roed-math/paperforge">
-  <img src="paperforge-badge.svg" alt="built with PaperForge" height="20">
+  <img src="paperforge-badge.svg" alt="Built with PaperForge" height="20">
 </a>
 ```
 
-**Dark-mode-aware embed** (GitHub READMEs):
+LaTeX:
 
-```html
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/paperforge-mark-dark.svg">
-  <img src="assets/paperforge-mark.svg" alt="PaperForge" width="120">
-</picture>
+```latex
+\usepackage{tikz}
+\usepackage{hyperref}
+\input{paperforge.tex}
+...
+\PaperForgeColophon
 ```
 
-## Anatomy
-
-- **Page** — dog-eared sheet, ember fold: the PreTeXt source being worked. Its
-  last text line ends in a punched-out QED square.
-- **Anvil** — the toolchain, straight lines only: a slab, a wedge of a horn,
-  one trapezoid.
-- **The two squares** — the page's QED tombstone and the anvil's hardy hole
-  (the real square socket in an anvil's heel): a socket exactly the shape of a
-  finished proof.
-
-All geometry is hand-drawn vector on a 100×100 grid, holes punched with
-`fill-rule="evenodd"` so every variant works on any background. The TikZ
-version mirrors the same coordinates.
+For dark-mode-aware web embeds, select `paperforge-mark-dark.svg` when the
+background is dark. Use `paperforge-mark-mono.svg` when the surrounding CSS
+should control the mark color.

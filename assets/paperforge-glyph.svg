@@ -1,8 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="PaperForge glyph">
-  <title>PaperForge</title>
-  <rect x="78" y="32" width="6" height="6" fill="#EA580C"/>
-  <path fill="currentColor" fill-rule="evenodd" d="
-    M 9 43.5 L 25 41 L 91 41 L 91 55 L 25 55 L 9 47.5 Z
-    M 78 45 L 84 45 L 84 51 L 78 51 Z"/>
-  <path fill="currentColor" d="M 43 54 L 63 54 L 72 72 L 34 72 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="PaperForge glyph">
+  <defs>
+    <mask id="pf-glyph-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+      <rect width="24" height="24" fill="white"/>
+      <path d="m4 12 3-7h8l2 2c2 0 3 0 5-1-1 4-5 7-9 7H4Z" fill="black"/>
+    </mask>
+  </defs>
+  <path fill="currentColor" mask="url(#pf-glyph-cut)" d="M2 7h5l2-2h6l2 2h5c-1 4-4 7-8 8-2 1-2 3 0 5l1 1h-4l-1-2H7l-1 2H3v-2l2-2c2-2 0-3-3-4Z"/>
+  <path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" d="m4 12 3-7h8l2 2c2 0 3 0 5-1-1 4-5 7-9 7H4Zm13-5c0 3-1 5-4 6"/>
 </svg>
