@@ -72,8 +72,11 @@ def main():
 
     out = root / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("window.PAPERFORGE_LEAN_KNOWLS = "
-                   + json.dumps(reg, ensure_ascii=False) + ";\n")
+    # merge-assign so per-formalization registry files can be concatenated
+    # into one bundle (decl names are namespaced per project)
+    out.write_text("window.PAPERFORGE_LEAN_KNOWLS = Object.assign("
+                   "window.PAPERFORGE_LEAN_KNOWLS || {}, "
+                   + json.dumps(reg, ensure_ascii=False) + ");\n")
     missing = sorted(wanted - set(reg))
     print(f"lean-knowls: {len(reg)}/{len(wanted)} declarations "
           f"({out.stat().st_size // 1024}K) -> {out}")

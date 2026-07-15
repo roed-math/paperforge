@@ -24,7 +24,7 @@ XML_ID = "{http://www.w3.org/XML/1998/namespace}id"
 KINDS = {"theorem", "lemma", "proposition", "corollary", "definition"}
 
 CHAPTER_HEADER = """\
-import GQ2
+import {module}
 import Verso
 import VersoManual
 import VersoBlueprint
@@ -63,12 +63,20 @@ def _brace(s: str, i: int) -> int:
 
 
 class Gen:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, declmap="crosswalk/lean-decl-map.json",
+                 census="crosswalk/axiom-citations.json",
+                 atlas="crosswalk/atlas-graph.json", module="GQ2",
+                 doc_title=None):
         self.root = root
-        self.declmap = json.load(open(root / "crosswalk/lean-decl-map.json"))
+        self.module = module
+        self.doc_title = doc_title
+        self.declmap = json.load(open(root / declmap))
         self.numbering = json.load(
             open(root / "crosswalk/numbering-current.json"))["items"]
-        self.census = json.load(open(root / "crosswalk/axiom-citations.json"))
+        census_path = root / census if census and census != "none" else None
+        self.census = (json.load(open(census_path))
+                       if census_path and census_path.exists() else {})
+        self._atlas = atlas
         self.nodes = set(self.declmap)          # blueprint labels = paper tags
         self.ax_label = {}
         taken = set()
@@ -99,8 +107,8 @@ class Gen:
         for name, lab in self.ax_label.items():
             self.decl_label.setdefault(name, lab)
         self.lean_uses: dict[str, set[str]] = {}
-        atlas = root / "crosswalk/atlas-graph.json"
-        if atlas.exists():
+        atlas = root / self._atlas if self._atlas else None
+        if atlas and atlas.exists():
             g = json.load(open(atlas))
             deps: dict[str, list[str]] = {}
             for e in g["edges"]:
@@ -296,10 +304,13 @@ class Gen:
         final = self.reduce_edges(all_uses)
         edge_count = sum(len(v) for v in final.values())
         # pass 2: emit
-        chapters = ["Foundations"]
-        (out_lib / "Chapters/Foundations.lean").write_text(
-            CHAPTER_HEADER.format(prelude=prelude, title="Foundational inputs")
-            + self.foundations())
+        chapters = []
+        if self.census:
+            chapters.append("Foundations")
+            (out_lib / "Chapters/Foundations.lean").write_text(
+                CHAPTER_HEADER.format(prelude=prelude, module=self.module,
+                                      title="Foundational inputs")
+                + self.foundations())
         for stem, tree, els in parsed:
             sec_title = (self.plain(tree.find("title"))
                          if tree.find("title") is not None else stem)
@@ -311,7 +322,8 @@ class Gen:
             body = "\n\n".join(self.node(el, t, final.get(t, []), group)
                                for t, el in els)
             (out_lib / "Chapters" / f"{name}.lean").write_text(
-                CHAPTER_HEADER.format(prelude=prelude, title=sec_title)
+                CHAPTER_HEADER.format(prelude=prelude, module=self.module,
+                                      title=sec_title)
                 + header + body + "\n")
             chapters.append(name)
         self.blueprint_root(out_lib, project, chapters)
@@ -373,13 +385,14 @@ open Verso.Genre
 open Verso.Genre.Manual
 open Informal
 
-#doc (Manual) "Blueprint: a profinite presentation of the absolute Galois group of ℚ₂" =>
+#doc (Manual) "{self.doc_title or 'Blueprint'}" =>
 
 This blueprint pairs every paper statement that has a formalized counterpart
 with its Lean declarations, generated from the paper source and the
 formalization crosswalk (paperforge `ingest/blueprint_gen.py`). Node status
 is computed from the Lean declarations directly; edges follow the paper's
-proofs and the axiom census.
+proofs{', the axiom census,' if self.census else ''} and the formalization's
+own dependency graph.
 
 {includes}
 
@@ -395,12 +408,24 @@ def main():
     ap.add_argument("--blueprint-dir", type=Path, default=None,
                     help="blueprint project dir (default <instance>/blueprint)")
     ap.add_argument("--project", default="GQ2Blueprint")
+    ap.add_argument("--declmap", default="crosswalk/lean-decl-map.json")
+    ap.add_argument("--census", default="crosswalk/axiom-citations.json",
+                    help="axiom census JSON, or 'none' to skip Foundations")
+    ap.add_argument("--atlas", default="crosswalk/atlas-graph.json",
+                    help="Lean Atlas graph export for dependency edges "
+                         "(skipped when the file does not exist)")
+    ap.add_argument("--module", default="GQ2",
+                    help="Lean module the chapters import")
+    ap.add_argument("--title", default="Blueprint: a profinite presentation "
+                                       "of the absolute Galois group of ℚ₂")
     args = ap.parse_args()
     root = args.instance.resolve()
     bp = args.blueprint_dir or root / "blueprint"
     out_lib = bp / args.project
     (out_lib / "Chapters").mkdir(parents=True, exist_ok=True)
-    chapters = Gen(root).run(out_lib, args.project)
+    gen = Gen(root, declmap=args.declmap, census=args.census,
+              atlas=args.atlas, module=args.module, doc_title=args.title)
+    chapters = gen.run(out_lib, args.project)
     print(f"wrote {len(chapters)} chapters -> {out_lib}/Chapters/ "
           f"(+ Blueprint.lean)")
 

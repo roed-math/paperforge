@@ -65,6 +65,17 @@ declarations directly. Seed chapter: the presentation theorem + marked
 Demushkin normalization; full authoring via the /blueprint skill once the
 formalization stabilizes.
 
+**Multiple formalizations** (gq2 has two, on different toolchains): one
+docbuild-X + blueprint-X workspace pair per formalization, each pinned to
+ITS toolchain with the matching doc-gen4 tag / VersoBlueprint branch (the
+template conventions differ across branches — check `ProjectTemplateMain`
+and `ci-pages.sh` on the branch you use). Badges carry
+`project="<name>"`; docs deploy per-project under `/lean/<name>/`; the
+lean-knowls registries are per-project files merged into the UI bundle
+(`Object.assign` form). Submodule bumps follow
+`skills/update-formalization` — including its doc-trace purge and
+lakefile+manifest path rules.
+
 Two gotchas of the split layout:
 
 - `lake update` reconciles `lean-toolchain` to the VersoBlueprint branch's
