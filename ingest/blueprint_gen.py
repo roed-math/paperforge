@@ -86,6 +86,66 @@ class Gen:
             for t in rec.get("paper_tags", []):
                 if t in self.nodes:
                     self.ax_uses.setdefault(t, []).append(self.ax_label[name])
+        # Lean-derived dependency edges (the authoritative structure): BFS
+        # from each node's declarations down the atlas graph (source depends
+        # on target), stopping at the first declaration owned by another
+        # blueprint node. Paper-prose xrefs alone leave the graph flat — the
+        # main theorem's "proof" is the whole induction, so nothing reaches
+        # it in prose.
+        self.decl_label: dict[str, str] = {}
+        for t, v in self.declmap.items():
+            for e in v:
+                self.decl_label[e["decl"]] = t
+        for name, lab in self.ax_label.items():
+            self.decl_label.setdefault(name, lab)
+        self.lean_uses: dict[str, set[str]] = {}
+        atlas = root / "crosswalk/atlas-graph.json"
+        if atlas.exists():
+            g = json.load(open(atlas))
+            deps: dict[str, list[str]] = {}
+            for e in g["edges"]:
+                deps.setdefault(e["source"], []).append(e["target"])
+            for label in set(self.decl_label.values()):
+                seeds = [d for d, l in self.decl_label.items() if l == label]
+                seen, stack, found = set(seeds), list(seeds), set()
+                while stack:
+                    d = stack.pop()
+                    for nxt in deps.get(d, ()):
+                        if nxt in seen:
+                            continue
+                        seen.add(nxt)
+                        lab = self.decl_label.get(nxt)
+                        if lab and lab != label:
+                            found.add(lab)     # edge; don't traverse through
+                        else:
+                            stack.append(nxt)
+                self.lean_uses[label] = found
+
+    @staticmethod
+    def reduce_edges(uses: dict[str, set[str]]) -> dict[str, list[str]]:
+        """Transitive reduction at node grain: drop a direct edge when the
+        target is already reachable through another dependency (keeps the
+        rendered graph layered instead of a shortcut-dense clique)."""
+        def close(start: str, acc: set[str]) -> set[str]:
+            for b in uses.get(start, ()):
+                if b not in acc:
+                    acc.add(b)
+                    close(b, acc)
+            return acc
+
+        reduced: dict[str, list[str]] = {}
+        for a, bs in uses.items():
+            keep = []
+            for b in sorted(bs):
+                via_others: set[str] = set()
+                for c in bs:
+                    if c != b and c not in via_others:
+                        via_others.add(c)
+                        close(c, via_others)
+                if b not in via_others:
+                    keep.append(b)
+            reduced[a] = keep
+        return reduced
 
     # ---------------------------------------------------------- inline text
     @staticmethod
@@ -165,7 +225,16 @@ class Gen:
                 parts.append(f"$$`{clean_math(ch.text or '')}`")
         return "\n\n".join(p for p in parts if p)
 
-    def node(self, el, tag: str) -> str:
+    def proof_xref_uses(self, el, tag: str) -> list[str]:
+        uses = []
+        for proof in el.findall("proof"):
+            for x in proof.iter("xref"):
+                r = x.get("ref", "")
+                if r in self.nodes and r != tag and r not in uses:
+                    uses.append(r)
+        return uses
+
+    def node(self, el, tag: str, uses: list[str], group: str) -> str:
         rec = self.numbering[tag]
         kind = etree.QName(el).localname
         if kind not in KINDS:
@@ -184,18 +253,8 @@ class Gen:
         # 'lemma' is a Lean keyword; VersoBlueprint registers the directive
         # with a trailing underscore
         directive = "lemma_" if kind == "lemma" else kind
-        out = [f':::{directive} "{tag}" (lean := "{decls}")', head, "", body,
-               ":::"]
-        # proof: edges from proof xrefs + axiom anchors
-        uses = []
-        for proof in el.findall("proof"):
-            for x in proof.iter("xref"):
-                r = x.get("ref", "")
-                if r in self.nodes and r != tag and r not in uses:
-                    uses.append(r)
-        for ax in self.ax_uses.get(tag, []):
-            if ax not in uses:
-                uses.append(ax)
+        out = [f':::{directive} "{tag}" (lean := "{decls}") '
+               f'(parent := "{group}")', head, "", body, ":::"]
         if uses:
             links = " ".join(f'{{uses "{u}"}}[]' for u in uses)
             out += ["", f':::proof "{tag}"',
@@ -218,10 +277,9 @@ class Gen:
         main = (self.root / "source/main.ptx").read_text()
         order = re.findall(r'href="\./(sec-[^"]+|app-[^"]+)\.ptx"', main)
         prelude = self.macros_prelude()
-        chapters = ["Foundations"]
-        (out_lib / "Chapters/Foundations.lean").write_text(
-            CHAPTER_HEADER.format(prelude=prelude, title="Foundational inputs")
-            + self.foundations())
+        # pass 1: parse chapters, collect the union of edge sources per tag
+        parsed = []
+        all_uses: dict[str, set[str]] = {}
         for stem in order:
             f = self.root / "source" / f"{stem}.ptx"
             tree = etree.parse(str(f)).getroot()
@@ -229,16 +287,36 @@ class Gen:
                    if el.get(XML_ID) in self.nodes]
             if not els:
                 continue
+            for t, el in els:
+                all_uses[t] = (set(self.proof_xref_uses(el, t))
+                               | set(self.ax_uses.get(t, []))
+                               | self.lean_uses.get(t, set()))
+                all_uses[t].discard(t)
+            parsed.append((stem, tree, els))
+        final = self.reduce_edges(all_uses)
+        edge_count = sum(len(v) for v in final.values())
+        # pass 2: emit
+        chapters = ["Foundations"]
+        (out_lib / "Chapters/Foundations.lean").write_text(
+            CHAPTER_HEADER.format(prelude=prelude, title="Foundational inputs")
+            + self.foundations())
+        for stem, tree, els in parsed:
             sec_title = (self.plain(tree.find("title"))
                          if tree.find("title") is not None else stem)
             name = "".join(w.capitalize() for w in
                            re.sub(r"^(sec|app)-", "", stem).split("-"))
             name = re.sub(r"[^A-Za-z0-9]", "", name) or "Chapter"
-            body = "\n\n".join(self.node(el, t) for t, el in els)
+            group = f"ch-{name}"
+            header = (f':::group "{group}"\n{self.esc(sec_title)}\n:::\n\n')
+            body = "\n\n".join(self.node(el, t, final.get(t, []), group)
+                               for t, el in els)
             (out_lib / "Chapters" / f"{name}.lean").write_text(
-                CHAPTER_HEADER.format(prelude=prelude, title=sec_title) + body + "\n")
+                CHAPTER_HEADER.format(prelude=prelude, title=sec_title)
+                + header + body + "\n")
             chapters.append(name)
         self.blueprint_root(out_lib, project, chapters)
+        print(f"edges after reduction: {edge_count} "
+              f"(lean-derived: {sum(len(v) for v in self.lean_uses.values())})")
         return chapters
 
     def foundations(self) -> str:
