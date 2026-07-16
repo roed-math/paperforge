@@ -15,7 +15,9 @@ Stdlib + lxml (already a validator dependency).
 from __future__ import annotations
 
 import json
+import os
 import re
+import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,6 +25,19 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path.cwd()
 HERE = Path(__file__).resolve().parent
+
+# ThreadingHTTPServer handles each request in its own thread, and a second
+# server pointed at the same instance root is another writer entirely: a
+# plain json.dump(open(path, "w")) once left marks.json truncated mid-entry.
+# All artifact writes go through here — full serialize, then atomic rename.
+_WRITE_LOCK = threading.Lock()
+
+
+def atomic_dump(data, path: Path) -> None:
+    tmp = path.with_name(path.name + ".tmp~")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1, ensure_ascii=False)
+    os.replace(tmp, path)
 MATHJAX_LOCAL = ROOT / "vendor" / "node_modules" / "mathjax"
 MATHJAX_CDN = "https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"
 
@@ -360,7 +375,7 @@ class Novelty:
             c["author_note"] = note
         if text is not None:
             c["statement"] = text
-        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
+        atomic_dump(data, self.path)
 
 
 class Followups:
@@ -457,7 +472,7 @@ class Followups:
             q["author_note"] = note
         if text is not None:
             q["statement"] = text
-        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
+        atomic_dump(data, self.path)
 
 
 class Disambig:
@@ -517,7 +532,7 @@ class Disambig:
         data = json.load(open(self.path))
         if status:
             data[key][block] = status
-        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
+        atomic_dump(data, self.path)
 
     def margin_anchor(self, it, tag, page):
         # a division-grain sense decision covers wrapped occurrences spread
@@ -596,7 +611,7 @@ class CitationNeeds:
             rec["decision"] = status
         if note is not None:
             rec["author_note"] = note
-        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
+        atomic_dump(data, self.path)
 
     def margin_anchor(self, it, tag, page):
         # once an insertion cites the required works, the citing paragraph
@@ -679,7 +694,7 @@ class Known:
             rec["status"] = status
         if note is not None:
             rec["author_note"] = note
-        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
+        atomic_dump(data, self.path)
 
 
 class Marks:
@@ -755,7 +770,7 @@ class Marks:
             "generator": "roed",
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
+        atomic_dump(data, self.path)
         return mid, True
 
     def delete(self, mid: str) -> bool:
@@ -766,7 +781,7 @@ class Marks:
         if not m or m["status"] != "open":
             return False
         del data["marks"][mid]
-        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
+        atomic_dump(data, self.path)
         return True
 
     def open_marks(self, page: str | None = None) -> list[dict]:
@@ -811,7 +826,7 @@ class Marks:
             m["author_note"] = note
         if text is not None:
             m["text"] = text
-        json.dump(data, open(self.path, "w"), indent=1, ensure_ascii=False)
+        atomic_dump(data, self.path)
 
 
 ADAPTERS = {a.name: a() for a in (Novelty, Followups, Disambig,
@@ -836,9 +851,9 @@ def load_agents() -> dict:
     if not AGENTS_TOML.exists():
         return {"agents": {}, "default": None}
     try:
-    import tomllib
-except ModuleNotFoundError:      # Python < 3.11
-    import tomli as tomllib
+        import tomllib
+    except ModuleNotFoundError:      # Python < 3.11
+        import tomli as tomllib
     with open(AGENTS_TOML, "rb") as f:
         cfg = tomllib.load(f)
     agents = {k: {"label": v.get("label", k), "command": v["command"]}
@@ -1145,7 +1160,11 @@ _PENDING = {"proposed", "needs-discussion", "needs-citation", "?",
 
 def progress_snapshot() -> dict:
     marks: dict[str, dict] = {}
-    for m in ADAPTERS["marks"]._load()["marks"].values():
+    try:
+        mvals = list(ADAPTERS["marks"]._load()["marks"].values())
+    except Exception:
+        mvals = []
+    for m in mvals:
         d = marks.setdefault(m["mode"], {"open": 0, "applied": 0,
                                          "dismissed": 0})
         d[m.get("status", "open")] = d.get(m.get("status", "open"), 0) + 1
@@ -1153,7 +1172,12 @@ def progress_snapshot() -> dict:
     for a in ADAPTERS.values():
         if a.name == "marks":
             continue
-        items = a.items()
+        try:
+            items = a.items()
+        except Exception as e:
+            decisions[a.name] = {"label": a.label, "total": -1, "pending": -1,
+                                 "error": f"{type(e).__name__}: {e}"}
+            continue
         decisions[a.name] = {
             "label": a.label, "total": len(items),
             "pending": sum(1 for it in items if it["status"] in _PENDING)}
@@ -1192,9 +1216,16 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(html)
             return
         if url.path == "/api/artifacts":
-            return self._json([{"name": a.name, "label": a.label,
-                                "blurb": a.blurb, "count": len(a.items())}
-                               for a in ADAPTERS.values()])
+            out = []
+            for a in ADAPTERS.values():
+                try:
+                    rec = {"name": a.name, "label": a.label,
+                           "blurb": a.blurb, "count": len(a.items())}
+                except Exception as e:   # corrupt artifact: surface, don't die
+                    rec = {"name": a.name, "label": a.label, "blurb": a.blurb,
+                           "count": -1, "error": f"{type(e).__name__}: {e}"}
+                out.append(rec)
+            return self._json(out)
         if url.path == "/api/agents":
             cfg = load_agents()
             return self._json({
@@ -1234,14 +1265,25 @@ class Handler(SimpleHTTPRequestHandler):
             q = parse_qs(url.query)
             a = ADAPTERS.get(q.get("artifact", [""])[0])
             if a:
-                return self._json(a.items())
+                try:
+                    return self._json(a.items())
+                except Exception as e:
+                    return self._json({"error": f"{a.name} artifact failed "
+                                       f"to load: {type(e).__name__}: {e}"},
+                                      500)
             return self._json({"error": "unknown artifact"}, 400)
         if url.path == "/api/margin":
             q = parse_qs(url.query)
             page = q.get("page", [""])[0]
             out = []
             for a in ADAPTERS.values():
-                for it in a.items():
+                try:
+                    its = a.items()
+                except Exception as e:
+                    print(f"[margin] skipping {a.name}: "
+                          f"{type(e).__name__}: {e}")
+                    continue
+                for it in its:
                     anchors = []
                     for l in it.get("links", []):
                         if tag_page(l["tag"]) != page:
@@ -1377,10 +1419,12 @@ class Handler(SimpleHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         req = json.loads(self.rfile.read(n))
         if self.path == "/api/mark":
-            mid, created = ADAPTERS["marks"].add(req)
+            with _WRITE_LOCK:
+                mid, created = ADAPTERS["marks"].add(req)
             return self._json({"ok": True, "id": mid, "created": created})
         if self.path == "/api/mark-delete":
-            ok = ADAPTERS["marks"].delete(req.get("id", ""))
+            with _WRITE_LOCK:
+                ok = ADAPTERS["marks"].delete(req.get("id", ""))
             return self._json({"ok": ok})
         if self.path == "/api/dispatch":
             rec, err = dispatch_job(req.get("task", ""),
@@ -1405,8 +1449,9 @@ class Handler(SimpleHTTPRequestHandler):
         if not a:
             return self._json({"error": "unknown artifact"}, 400)
         try:
-            a.decide(req["id"], req.get("status"), req.get("note"),
-                     req.get("text"))
+            with _WRITE_LOCK:
+                a.decide(req["id"], req.get("status"), req.get("note"),
+                         req.get("text"))
         except KeyError as e:
             return self._json({"error": f"unknown item {e}"}, 400)
         return self._json({"ok": True})
