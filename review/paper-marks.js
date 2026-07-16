@@ -1,7 +1,8 @@
 // Click-to-mark review layer (injected by review_server on /paper/* pages).
 // A margin palette selects what a click means; clicks register author
 // intents into directives/marks.json via POST /api/mark. Existing open
-// marks are re-displayed as colored dots at their anchors.
+// marks are re-displayed as colored dots at their anchors; clicking a dot
+// twice retracts the mark.
 (function () {
   'use strict';
 
@@ -52,7 +53,9 @@
     body.marking .ptx-content a { cursor: crosshair; }
     .mark-dot { display: inline-block; width: .6em; height: .6em;
       border-radius: 50%; margin: 0 .1em; vertical-align: super;
-      cursor: help; }
+      cursor: pointer; }
+    .mark-dot.armed { outline: 2px solid #dc2626; outline-offset: 1px;
+      transform: scale(1.35); }
     #mark-toast { position: fixed; bottom: 1rem; right: 1rem; z-index: 4001;
       background: #333; color: #fff; padding: .4rem .8rem; border-radius: 4px;
       font-size: .85rem; opacity: 0; transition: opacity .3s; }
@@ -141,7 +144,7 @@
     let node = range.commonAncestorContainer;
     if (node.nodeType === 3) node = node.parentElement;
     if (!node.closest('.ptx-content')) return;
-    const text = String(sel).replace(/\s+/g, ' ').trim().slice(0, 200);
+    const text = wordSnapped(range).replace(/\s+/g, ' ').trim().slice(0, 200);
     if (!text) return;
     selectionMark = true;               // swallow the click that follows
     setTimeout(() => { selectionMark = false; }, 0);
@@ -176,6 +179,55 @@
     submit(capture(ev), ev.target);
   }, true);
 
+  // clicking a dot arms it; a second click within 2.5s retracts the mark.
+  // Works with or without a pen (clicking a dot never creates a mark);
+  // the notation-remove pen keeps its one-click retract of notation dots.
+  let armed = null, armedTimer = 0;
+  document.addEventListener('click', ev => {
+    const dot = ev.target.closest('.mark-dot');
+    if (!dot || active === 'notation-remove') return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (armed === dot) {
+      clearTimeout(armedTimer);
+      armed = null;
+      dot.classList.remove('armed');
+      return retract(dot);
+    }
+    if (armed) armed.classList.remove('armed');
+    armed = dot;
+    dot.classList.add('armed');
+    toast(`click again to retract ${dot.dataset.markId}`);
+    clearTimeout(armedTimer);
+    armedTimer = setTimeout(() => {
+      dot.classList.remove('armed');
+      if (armed === dot) armed = null;
+    }, 2500);
+  }, true);
+
+  // A drag that starts or ends mid-word ("inite intersection property")
+  // snaps outward to whole words before the text is recorded.
+  const WORD = /[\p{L}\p{N}'’-]/u;
+  function wordSnapped(range) {
+    const r = range.cloneRange();
+    const s = r.startContainer, e = r.endContainer;
+    if (s.nodeType === 3) {
+      const t = s.textContent;
+      let i = r.startOffset;
+      if (i < t.length && WORD.test(t[i]))
+        while (i > 0 && WORD.test(t[i - 1])) i--;
+      r.setStart(s, i);
+    }
+    if (e.nodeType === 3) {
+      const t = e.textContent;
+      let i = r.endOffset;
+      if (i > 0 && WORD.test(t[i - 1]))
+        while (i < t.length && WORD.test(t[i])) i++;
+      r.setEnd(e, i);
+    }
+    return r.toString();
+  }
+
   function anchorsOf(el) {
     let anchor = '', block = '';
     for (; el; el = el.parentElement) {
@@ -193,7 +245,9 @@
   }
 
   function capture(ev) {
-    let text = String(window.getSelection() || '').trim();
+    const sel = window.getSelection();
+    let text = (sel && !sel.isCollapsed)
+      ? wordSnapped(sel.getRangeAt(0)).trim() : '';
     const mjx = ev.target.closest('mjx-container');
     if (!text && mjx) text = (mjx.textContent || '').trim().slice(0, 80);
     if (!text) {
@@ -218,7 +272,8 @@
     dot.dataset.markId = id;
     dot.dataset.mode = mode;
     dot.style.background = (BY_KEY[mode] || {}).color || '#666';
-    dot.title = `${(BY_KEY[mode] || {}).label || mode}: ${text} (${id})`;
+    dot.title = `${(BY_KEY[mode] || {}).label || mode}: ${text} (${id})`
+                + ' — click twice to retract';
     target.insertAdjacentElement('afterend', dot);
   }
 
