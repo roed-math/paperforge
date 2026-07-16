@@ -111,6 +111,20 @@ def links_for(tags) -> list[dict]:
     return out
 
 
+def coarse_tag(tag: str) -> str | None:
+    """Map a DOM element id to its enclosing crosswalk tag. PreTeXt derives
+    paragraph ids from the parent block by appending numeric components
+    (lem-foo -> lem-foo-2-1), so strip trailing numbers until a known tag."""
+    t = tag
+    items = _items()
+    while t and t not in items:
+        base, dash, leaf = t.rpartition("-")
+        if not dash or not leaf.isdigit():
+            return None
+        t = base
+    return t or None
+
+
 # A decision anchored at a whole division would put its margin marker on the
 # division HEADING, even when the decided thing lives pages later. Adapters
 # may define margin_anchor(item, tag, page) returning a finer element id
@@ -805,17 +819,35 @@ class Marks:
             if gf:
                 fields.append(gf)
             block = m.get("block") or m.get("anchor")
+            fine = m.get("anchor") or block
+            tag = coarse_tag(block) if block else None
+            if tag:
+                links = links_for([tag])
+                if links and fine and fine != tag:
+                    links[0]["href"] = (links[0]["href"].split("#")[0]
+                                        + "#" + fine)
+            elif block and m.get("page"):
+                # click site inside a division the crosswalk doesn't number
+                # (e.g. subsec-novelty): trust the recorded page + element id
+                links = [{"label": block, "tag": fine, "page": m["page"],
+                          "href": f"/paper/{m['page']}#{fine}"}]
+            else:
+                links = []
             out.append(dict(
                 id=mid, title=f"{m['mode']}: {m.get('text') or '(no text)'}",
                 fields=fields,
                 text=m.get("text"),
                 text_help="The clicked term/selection. Edit if the click "
                           "captured the wrong span.",
-                links=links_for([block] if block else []),
+                links=links, anchor=fine,
                 status=m["status"], choices=self.choices,
                 choice_help=self.choice_help,
                 note=m.get("author_note", "")))
         return out
+
+    def margin_anchor(self, it, tag, page):
+        # the stored anchor is the exact element id at the click site
+        return it.get("anchor")
 
     def decide(self, iid, status, note, text):
         data = self._load()
@@ -1286,7 +1318,7 @@ class Handler(SimpleHTTPRequestHandler):
                 for it in its:
                     anchors = []
                     for l in it.get("links", []):
-                        if tag_page(l["tag"]) != page:
+                        if (l.get("page") or tag_page(l["tag"])) != page:
                             continue
                         fine = (a.margin_anchor(it, l["tag"], page)
                                 if hasattr(a, "margin_anchor") else None)
