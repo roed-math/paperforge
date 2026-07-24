@@ -47,7 +47,7 @@ WORK = re.compile(r"\b([A-Z][A-Za-z'’\-]+(?:–[A-Z][A-Za-z'’\-]+)*)"
                   r"|(?:^|;|\+)\s*([A-Z][A-Za-z'’\-]{2,}|[A-Z]{2,4})\b[ ,*]")
 
 
-def resolve_paper_tags(paper_refs, old_map, cur_items):
+def resolve_paper_tags(paper_refs, old_map, cur_items, old_items=None):
     declmap = None
     tags = []
     kindmap = {"theorem": "theorem", "thm": "theorem", "lemma": "lemma",
@@ -60,17 +60,26 @@ def resolve_paper_tags(paper_refs, old_map, cur_items):
             tag = re.sub(r"[:_]", "-", label)
             res.setdefault((rec["old_kind"], rec["old"]), tag)
             res.setdefault(("any", rec["old"]), tag)
-    eqmap = {}
-    for tag, r in cur_items.items():
-        if r["kind"] in kindmap.values():
-            res.setdefault((r["kind"], r["number"]), tag)
-            res.setdefault(("any", r["number"]), tag)
-        elif r["kind"] in ("equation", "align-row"):
-            eqmap[r["number"].strip("()")] = tag
-    secmap = {}
-    for tag, r in cur_items.items():
-        if r["kind"] in ("section", "appendix", "subsection"):
-            secmap[r["number"]] = tag
+    # Docstring refs cite the numbering of the snapshot they were written
+    # against, so number->tag maps must be seeded snapshot-first (--old-
+    # numbering, e.g. numbering-v428.json); the current numbering is only a
+    # fallback for refs added after that snapshot.  Seeding equations and
+    # divisions from current numbering alone silently retargets every
+    # "eq. (N)" / "§X.Y" citation as soon as an insertion renumbers the paper.
+    eqmap, secmap = {}, {}
+    for items in (x for x in (old_items, cur_items) if x):
+        for tag, r in items.items():
+            num = r["number"]
+            if not num or "?" in num:
+                continue
+            if r["kind"] in kindmap.values():
+                res.setdefault((r["kind"], num), tag)
+                res.setdefault(("any", num), tag)
+            elif r["kind"] in ("equation", "align-row"):
+                eqmap.setdefault(num.strip("()"), tag)
+            elif r["kind"] in ("section", "appendix", "subsection",
+                               "subsubsection"):
+                secmap.setdefault(num, tag)
     for kind_raw, num, sec, eq in paper_refs:
         if eq:
             if eq in eqmap:
@@ -91,6 +100,11 @@ def main() -> int:
     ap.add_argument("lean_root", type=Path)
     ap.add_argument("--current", type=Path, required=True)
     ap.add_argument("--old", type=Path)
+    ap.add_argument("--old-numbering", type=Path,
+                    help="full numbering snapshot (kind/number per tag, incl. "
+                         "equations and divisions) matching the numbering the "
+                         "Lean docstrings cite; takes priority over --current "
+                         "when resolving eq./§ references")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--seed-aliases", type=Path,
                     help="bibliography-bearing ptx (e.g. source/main.ptx); "
@@ -100,6 +114,8 @@ def main() -> int:
 
     cur = json.load(open(args.current))["items"]
     old = json.load(open(args.old)) if args.old and args.old.exists() else None
+    old_items = (json.load(open(args.old_numbering))["items"]
+                 if args.old_numbering and args.old_numbering.exists() else None)
 
     out = {}
     # Scan axioms AND census-marked theorems: a discharged axiom (proved
@@ -160,7 +176,7 @@ def main() -> int:
                     "census": census, "status": "axiom" if is_axiom else "discharged",
                     "file": str(f.relative_to(args.lean_root)),
                     "line": ln, "citation_lines": cites, "works": works,
-                    "paper_tags": resolve_paper_tags(prefs, old, cur),
+                    "paper_tags": resolve_paper_tags(prefs, old, cur, old_items),
                 }
             elif line.strip() and not line.lstrip().startswith("--"):
                 if depth == 0:
