@@ -1086,7 +1086,15 @@ def _load_source_map() -> dict | None:
 
 
 def _slice_rec(sm: dict, tag: str, part: str):
-    rec = (sm.get("spans") or {}).get(tag, {}).get(part)
+    if part == "paragraph":
+        # prose paragraphs (abstract / division-level text) have no labels;
+        # they are addressed by index into the source map's paras list
+        m = re.fullmatch(r"para-(\d+)", tag)
+        lst = sm.get("paras") or []
+        rec = lst[int(m.group(1))] if m and int(m.group(1)) < len(lst) \
+            else None
+    else:
+        rec = (sm.get("spans") or {}).get(tag, {}).get(part)
     if not rec:
         return None, None, None
     import hashlib
@@ -1095,6 +1103,45 @@ def _slice_rec(sm: dict, tag: str, part: str):
     sl = text[rec["start"]:rec["end"]]
     cur = hashlib.sha1(sl.encode()).hexdigest()[:16]
     return sl, cur, rec
+
+
+_LATEX_DROP = [
+    (re.compile(r"\\begin\{(equation|align|gather|multline)\*?\}.*?"
+                r"\\end\{\1\*?\}", re.S), " "),
+    (re.compile(r"\$\$.*?\$\$", re.S), " "),
+    (re.compile(r"\$[^$]*\$"), " "),
+    (re.compile(r"\\\[.*?\\\]", re.S), " "),
+    (re.compile(r"\\\(.*?\\\)", re.S), " "),
+    (re.compile(r"\\(?:cite|cref|Cref|eqref|ref|hyperref|label|notn|"
+                r"nref)\*?(?:\[[^\]]*\])?\{[^{}]*\}"), " "),
+    (re.compile(r"\\[A-Za-z@]+"), " "),
+]
+
+
+def latex_words(s: str) -> list[str]:
+    """Prose words of a LaTeX slice (math and macros dropped) — the
+    signature the paper-view matches against rendered paragraphs."""
+    for rx, rep in _LATEX_DROP:
+        s = rx.sub(rep, s)
+    return [w.lower() for w in re.findall(r"[A-Za-z]{3,}", s)]
+
+
+def para_signatures(sm: dict) -> list[dict]:
+    """Word signatures for every prose-paragraph span in the source map.
+    Short paragraphs are skipped: too few words to anchor reliably."""
+    out = []
+    lst = (sm or {}).get("paras") or []
+    if not lst:
+        return out
+    try:
+        text = Path(sm["draft"]).read_text()
+    except OSError:
+        return out
+    for i, rec in enumerate(lst):
+        words = latex_words(text[rec["start"]:rec["end"]])
+        if len(words) >= 5:
+            out.append({"tag": f"para-{i}", "words": words})
+    return out
 
 
 def edit_extract(tag: str, part: str) -> dict:
@@ -1288,7 +1335,8 @@ class Handler(SimpleHTTPRequestHandler):
             sm = _load_source_map()
             return self._json({
                 "tags": {t: sorted(r) for t, r in
-                         (sm.get("spans") or {}).items()} if sm else {}})
+                         (sm.get("spans") or {}).items()} if sm else {},
+                "paras": para_signatures(sm) if sm else []})
         if url.path == "/api/edit":
             q = parse_qs(url.query)
             return self._json(edit_extract(q.get("tag", [""])[0],

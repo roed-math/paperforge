@@ -912,7 +912,120 @@ def build_source_map(parse_tex: str, orig_tex: str) -> dict:
                         orig_tex[a:b].encode()).hexdigest()[:16],
                 }
             out[tagify(label)] = rec
-    return out
+
+    paras = []
+    for a, b in _prose_para_spans(parse_tex):
+        oa, ob = to_orig(a), to_orig(b)
+        if oa is None or ob is None or ob <= oa:
+            continue
+        paras.append({"start": oa, "end": ob,
+                      "sha": hashlib.sha1(
+                          orig_tex[oa:ob].encode()).hexdigest()[:16]})
+    return {"spans": out, "paras": paras}
+
+
+# Prose paragraphs (the abstract + division-level text) carry no labels, so
+# the editor anchors them by position in this list; the review server matches
+# them to rendered paragraphs by their prose words, never by element id
+# (PreTeXt paragraph ids are positional, and insertion fragments shift them).
+# Segmentation must mirror parse_blocks: blank lines split, display math
+# joins the open paragraph, every other known block closes it.
+
+_PARA_MATH_ENVS = {"equation", "equation*", "align", "align*"}
+_PARA_BREAK_ENVS = (set(THEOREM_ENVS)
+                    | {"proof", "enumerate", "itemize", "verbatim",
+                       "thebibliography", "longtable", "tabular", "center",
+                       "abstract"})
+_PARA_TOKEN = re.compile(
+    r"\\begin\{([A-Za-z]+\*?)\}|(\\subsubsection\*?\{)|\\appendix\b")
+
+
+def _prose_para_spans(parse_tex: str) -> list:
+    spans: list = []
+
+    def walk(region_start: int, region_end: int, split_subsub: bool) -> None:
+        text = parse_tex
+        open_start = last_end = None
+
+        def close():
+            nonlocal open_start, last_end
+            if open_start is not None:
+                spans.append((open_start, last_end))
+            open_start = last_end = None
+
+        def add(a: int, b: int) -> None:
+            nonlocal open_start, last_end
+            if open_start is None:
+                open_start = a
+            last_end = b
+
+        pos = region_start
+        while pos < region_end:
+            m = _PARA_TOKEN.search(text, pos, region_end)
+            upto = m.start() if m else region_end
+            chunk = text[pos:upto]
+            cursor = 0
+            for k, piece in enumerate(re.split(r"\n\s*\n", chunk)):
+                if k > 0:
+                    close()
+                if piece.strip():
+                    s = chunk.index(piece, cursor)
+                    cursor = s + len(piece)
+                    a = s + (len(piece) - len(piece.lstrip()))
+                    b = s + len(piece.rstrip())
+                    add(pos + a, pos + b)
+            if re.search(r"\n\s*\n\s*$", chunk):
+                close()
+            if not m:
+                break
+            if m.group(1):                      # \begin{env}
+                env = m.group(1)
+                if env in _PARA_MATH_ENVS:
+                    try:
+                        e = find_env_end(text, m.end(), env)
+                    except ValueError:
+                        break
+                    add(m.start(), e)   # display math joins the paragraph
+                    pos = e
+                elif env in _PARA_BREAK_ENVS:
+                    close()
+                    try:
+                        pos = find_env_end(text, m.end(), env)
+                    except ValueError:
+                        break
+                else:                   # unknown env: stays in the prose
+                    pos = m.end()
+            elif m.group(2):                    # \subsubsection heading
+                # a real division only directly under a subsection
+                # (split_subsubsections); elsewhere it is an inline <alert>
+                if not split_subsub:
+                    pos = m.end()
+                    continue
+                close()
+                try:
+                    t = match_brace(text, m.end() - 1)
+                except (ValueError, IndexError):
+                    pos = m.end()
+                    continue
+                _lab, pos = read_label(text, t + 1)
+            else:                               # \appendix
+                close()
+                pos = m.end()
+        close()
+
+    # only real prose regions — the abstract plus every division's content —
+    # never the preamble/frontmatter scaffolding around them
+    body_off = (parse_tex.index(r"\begin{document}")
+                + len(r"\begin{document}"))
+    pre_chunk, units = parse_document(parse_tex)
+    am = re.search(r"\\begin\{abstract\}(.*?)\\end\{abstract\}",
+                   pre_chunk, re.S)
+    if am:
+        walk(body_off + am.start(1), body_off + am.end(1), False)
+    for u in units:
+        walk(u["offset"], u["offset"] + len(u["content"]),
+             u["level"] == "subsection")
+    return spans
 
 
 SEC_RE = re.compile(r"\\(section|subsection)\*?\{")
@@ -945,6 +1058,7 @@ def split_subsubsections(content: str):
 
 def parse_document(tex: str):
     """Split body into (heading, label, level, content) section units."""
+    body_off = tex.index(r"\begin{document}") + len(r"\begin{document}")
     body = tex.split(r"\begin{document}", 1)[1].rsplit(r"\end{document}", 1)[0]
     units = []
     pos = 0
@@ -961,8 +1075,9 @@ def parse_document(tex: str):
         end = matches[k + 1].start() if k + 1 < len(matches) else len(body)
         content = body[p:end]
         # \appendix sits between sections in the content of the previous unit
+        # (offset: content's absolute position in tex, for the source map)
         units.append({"level": level, "title": title, "label": label,
-                      "content": content})
+                      "content": content, "offset": body_off + p})
     return preamble_chunk, units
 
 
@@ -1180,10 +1295,11 @@ def main() -> int:
         smap = build_source_map(tex, args.texfile.read_text())
         args.source_map.parent.mkdir(parents=True, exist_ok=True)
         args.source_map.write_text(json.dumps(
-            {"draft": str(args.texfile), "spans": smap}, indent=1))
-        nproofs = sum(1 for r in smap.values() if "proof" in r)
-        print(f"wrote {args.source_map} ({len(smap)} statements, "
-              f"{nproofs} proofs)")
+            {"draft": str(args.texfile), "spans": smap["spans"],
+             "paras": smap["paras"]}, indent=1))
+        nproofs = sum(1 for r in smap["spans"].values() if "proof" in r)
+        print(f"wrote {args.source_map} ({len(smap['spans'])} statements, "
+              f"{nproofs} proofs, {len(smap['paras'])} prose paragraphs)")
     if UNCLASSIFIED:
         n = sum(len(blocks) for blocks in UNCLASSIFIED.values())
         wl = (args.disambig.parent if args.disambig

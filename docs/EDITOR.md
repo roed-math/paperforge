@@ -4,7 +4,18 @@ Status: designed and **built through phase 3** (2026-07-12): the strip
 cockpit, margin statement editors, the tex2ptx source map, and the lane-1
 block editor (✎ on every mapped statement/proof; splice + rebuild +
 validate as a tracked job; structural edits deflect to lane 2 with an
-agent handoff). Lane-2 briefing refinement remains open. The review
+agent handoff). Lane-2 briefing refinement remains open.
+
+2026-07-24: lane 1 extended to **prose paragraphs** — the abstract and
+every division-level paragraph outside statements/proofs. tex2ptx emits
+their draft spans as `paras` in the source map (segmentation mirrors
+parse_blocks: blank lines split, display math joins, known envs break);
+they carry no labels and PreTeXt paragraph ids are positional (insertion
+fragments shift them), so the paper view anchors each span by matching
+its prose words (math/macros stripped) against rendered paragraphs —
+woven-in insertion paragraphs match nothing and get no ✎. Edits address
+`tag=para-N, part=paragraph` through the same splice/sha/structural-gate
+path. The review
 process has grown into a specialized editor; this note reorients the
 tooling around that fact. The **paper view is the primary surface**; the
 dashboard demotes to a project drawer for things that are inherently

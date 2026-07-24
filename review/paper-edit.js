@@ -19,11 +19,13 @@
   }
 
   ready(async function () {
-    let map;
+    let map, paras;
     try {
-      map = (await (await fetch("/api/edit-map")).json()).tags;
+      const resp = await (await fetch("/api/edit-map")).json();
+      map = resp.tags || {};
+      paras = resp.paras || [];
     } catch (e) { return; }
-    if (!map || !Object.keys(map).length) return;
+    if (!Object.keys(map).length && !paras.length) return;
 
     const css = el("style");
     css.textContent = `
@@ -78,7 +80,8 @@
         return;
       }
       panel.append(el("div", "pfe-head",
-        `${part} of ${tag} — draft LaTeX` +
+        (part === "paragraph" ? "paragraph — draft LaTeX"
+                              : `${part} of ${tag} — draft LaTeX`) +
         (data.stale ? " (map was stale; showing the current draft)" : "")));
       const ta = document.createElement("textarea");
       ta.value = data.latex;
@@ -114,8 +117,12 @@
           send.onclick = async () => {
             send.disabled = true;
             const cfg = await (await fetch("/api/agents")).json();
+            const where = part === "paragraph"
+              ? "a prose paragraph outside any statement/proof, which " +
+                "currently reads:\n\n" + data.latex + "\n"
+              : `the ${part} of ${tag}.`;
             const extra =
-              `Apply this manual edit to the ${part} of ${tag}. ` +
+              `Apply this manual edit to ${where}\n` +
               "Replace the draft LaTeX of that block with:\n\n" +
               ta.value + "\n\n" +
               "Keep every xml:id stable, keep the numbering simulation " +
@@ -201,6 +208,56 @@
                                openEditor(tag, "proof"); };
           sum.appendChild(b);
         }
+      }
+    }
+
+    /* prose paragraphs (abstract + division-level text): no labels, no
+       stable ids (insertion fragments shift PreTeXt's positional ids), so
+       anchor by matching each mapped paragraph's prose words against the
+       rendered candidates. Woven-in fragment paragraphs match nothing and
+       simply get no button. */
+    function domWords(p) {
+      const clone = p.cloneNode(true);
+      clone.querySelectorAll(
+        ".displaymath, mjx-container, script, .pfe-btn, .mark-dot, " +
+        ".knowl-output, .autopermalink")
+        .forEach(n => n.remove());
+      const t = (clone.textContent || "")
+        .replace(/\\\([\s\S]*?\\\)/g, " ")
+        .replace(/\\\[[\s\S]*?\\\]/g, " ")
+        .replace(/\\begin\{[\s\S]*\\end\{[A-Za-z]+\*?\}/g, " ");
+      return (t.match(/[A-Za-z]{3,}/g) || []).map(w => w.toLowerCase());
+    }
+    function jaccard(a, b) {
+      let inter = 0;
+      for (const w of a) if (b.has(w)) inter++;
+      return inter / (a.size + b.size - inter || 1);
+    }
+    if (paras.length) {
+      const cands = Array.from(document.querySelectorAll("div.para"))
+        .filter(p => !p.closest("article, details, li, nav, table, figure")
+                     && !(p.parentElement
+                          && p.parentElement.closest(".para")))
+        .map(p => ({ el: p, words: new Set(domWords(p)) }))
+        .filter(c => c.words.size >= 4);
+      const pairs = [];
+      for (const m of paras) {
+        const ws = new Set(m.words);
+        for (let c = 0; c < cands.length; c++) {
+          const s = jaccard(ws, cands[c].words);
+          if (s >= 0.5) pairs.push({ tag: m.tag, c, s });
+        }
+      }
+      pairs.sort((x, y) => y.s - x.s);
+      const usedTag = new Set(), usedCand = new Set();
+      for (const p of pairs) {
+        if (usedTag.has(p.tag) || usedCand.has(p.c)) continue;
+        usedTag.add(p.tag); usedCand.add(p.c);
+        const b = el("button", "pfe-btn", "✎");
+        b.title = "edit the draft LaTeX of this paragraph";
+        b.onclick = (e) => { e.preventDefault(); e.stopPropagation();
+                             openEditor(p.tag, "paragraph"); };
+        cands[p.c].el.appendChild(b);
       }
     }
   });
