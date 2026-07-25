@@ -292,7 +292,9 @@
       var entry = k && entryFor(k);
       if (!entry) return;
       clearTimeout(hideTimer);
-      var html = '<span class="notation-popup-key">' + k + '</span>' + entry.html;
+      // prose/background entries carry a human heading; math keys ARE one
+      var html = '<span class="notation-popup-key">' + (entry.label || k) +
+                 '</span>' + entry.html;
       if (entry.href) {
         // terminology entries (entry.more) point at the background block
         // that reviews the notion; notation entries at the defining spot
@@ -352,7 +354,10 @@
             hlTarget = defEl;
           }
         }, DEFSITE_HL_MS);
-        var delay = isFar(el) ? FAR_DELAY_MS : NEAR_DELAY_MS;
+        // prose term links (.ptxbg) read like ordinary text, so they get
+        // the far delay: no popup flicker while mousing across a paragraph
+        var far = isFar(el) || (el.classList && el.classList.contains("ptxbg"));
+        var delay = far ? FAR_DELAY_MS : NEAR_DELAY_MS;
         showTimer = setTimeout(function () { show(el); }, delay);
       } else if (hoverEl && !(e.target.closest &&
                               e.target.closest(".notation-popup"))) {

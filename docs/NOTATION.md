@@ -66,3 +66,33 @@ reference by design). `notation_far.py` rewrites `\notn` -> `\notnfar` beyond
 The hover UI: near symbols pop after `near_hover_delay_ms` (400), far symbols
 show `cursor: help` and pop after `far_hover_delay_ms` (1000) with a
 "see definition in context" link resolved from defsite/href.
+
+## Prose term links (`ingest/prose_terms.py`)
+
+The prose companion of the math wrap, built for background/terminology
+hovers (first used to tie the gq2 paper's usage sites to its Appendix E
+background subsections). An authored map (`paper.toml [notation]
+prose_map`, conventionally `notation/prose-map.json`) gives per-key
+`{match, scope?, first_per?, label, definition, href}`; the script runs
+after `tex2ptx` + `notation_far` (so it sees insertion content and does
+not perturb far word counts) and wraps matches in the GENERATED tree as
+`<termref key="K">...</termref>`. The custom XSLs render that as
+`<span class="ptxnotn-K ptxbg">` in HTML and as bare text in LaTeX.
+
+Semantics: matching runs over a masked logical text per file — every tag
+is an opaque barrier (so wraps always nest), `<ndash/>`/`<mdash/>`/`<nbsp/>`
+read as their characters, `$re$` in a pattern matches a whole inline
+`<m>` atomically, a space matches any whitespace run, and the compiled
+pattern gets word-boundary guards. First occurrence per block (nearest
+enclosing xml:id) is wrapped by default (`first_per`: `block` | `division`
+| `all`); titles, math displays, xrefs, code, biblio, and any division
+whose root id starts with `bg-` are skipped. Idempotent: existing termrefs
+are opaque and count toward the first-per-block bookkeeping.
+
+Registry: `notation_registry.py` merges prose entries into
+`window.PAPERFORGE_NOTATION` with `{html, href, label, more: true}`;
+detail-ui shows `label` as the popup heading, uses the FAR delay for
+`.ptxbg` spans, and renders the footer link as "more details ↗"
+(`entry.more`). Href targets missing from the numbering database (e.g.
+insertion divisions like `bg-*`) fall back to a tag anchor on the
+single-page build.

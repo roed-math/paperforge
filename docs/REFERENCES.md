@@ -90,3 +90,21 @@ a hand-verified citation pinned to a page in a PDF the repo carries. The
 validator turns "did we cite our foundations?" from an editorial hope into a
 CI check — and when the axiom-removal work discharges an axiom, the check
 adapts automatically on the next extraction.
+
+## Alphabetic labels and author-name ordering (`--bib-labels`)
+
+Math-paper convention: `tex2ptx --bib-labels references/bib-labels.json`
+takes an authored map `{bib-KEY: {label, sort}}`, stamps `label="NSW"`
+onto every `<biblio>` (draft-converted and extra-biblio alike), and sorts
+the merged bibliography by the `sort` key (first-author surname,
+co-authors, year; year suffixes on labels only to break same-author
+collisions, e.g. the four Serre entries Ser63/Ser73/Ser78/Ser79).
+
+One override per conversion does the rendering: `biblio[@label]`
+`mode="serial-number"` returns the label, which reaches every consumer —
+HTML citation text (core adds the brackets), the HTML reference-list
+marker, `\bibitem[...]` and the in-text citations in LaTeX. The arXiv XSL
+also recomputes thebibliography's widest-label argument from the longest
+actual label. Entries missing from the map fall back to serial numbers
+with a warning (mixed styles are a smell — keep the map complete); map
+entries matching no bibliography entry also warn.

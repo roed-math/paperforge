@@ -27,6 +27,20 @@
        formalizations are visually distinguishable. A badge carrying
        @nodocs (e.g. a private declaration, which doc-gen4 skips) renders
        as plain text with a tooltip instead of a dead link. -->
+  <!-- Prose term links (ingest/prose_terms.py): <termref key="K"> renders
+       as a hover span wired by detail-ui.js from the same registry as math
+       notation; ptxbg selects the longer "far" hover delay. -->
+  <xsl:template match="termref">
+    <span class="ptxnotn-{@key} ptxbg"><xsl:apply-templates/></span>
+  </xsl:template>
+
+  <!-- Alphabetic bibliography labels (tex2ptx bib-labels option): a
+       <biblio label="NSW"> renders [NSW] everywhere core uses the serial
+       number - citation text, knowls, and the reference-list marker. -->
+  <xsl:template match="biblio[@label]" mode="serial-number">
+    <xsl:value-of select="@label"/>
+  </xsl:template>
+
   <xsl:template match="lean">
     <xsl:variable name="proj">
       <xsl:choose>

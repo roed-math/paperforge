@@ -27,28 +27,32 @@ except ModuleNotFoundError:      # Python < 3.11
 from pathlib import Path
 
 
+def page_or_index(page: str, frag: str = "", web: Path | None = None) -> str:
+    if web is not None and not (web / page).exists():
+        singles = [f.name for f in web.glob("*.html")
+                   if f.name != "index.html"]
+        if len(singles) == 1:          # chunk-0 build: one document page
+            page = singles[0]
+        elif (web / "index.html").exists():
+            page = "index.html"
+    return page + frag
+
+
 def resolve_href(target: str, items: dict, web: Path | None = None) -> str | None:
     rec = items.get(target)
     if rec is None:
-        return None
-
-    def page_or_index(page, frag=""):
-        if web is not None and not (web / page).exists():
-            singles = [f.name for f in web.glob("*.html")
-                       if f.name != "index.html"]
-            if len(singles) == 1:          # chunk-0 build: one document page
-                page = singles[0]
-            elif (web / "index.html").exists():
-                page = "index.html"
-        return page + frag
+        # not in the numbering database — e.g. an insertion division like the
+        # background appendix (bg-*), which tex2ptx's simulator never sees.
+        # On the single-page build the tag anchor still resolves.
+        return page_or_index(f"{target}.html", f"#{target}", web)
 
     if rec["kind"] in ("section", "appendix"):
-        return page_or_index(f"{target}.html")
+        return page_or_index(f"{target}.html", web=web)
     # find the division (section/appendix) whose number matches this item's
     sec_no = rec.get("section")
     for tag, r in items.items():
         if r["kind"] in ("section", "appendix") and r["number"] == sec_no:
-            return page_or_index(f"{tag}.html", f"#{target}")
+            return page_or_index(f"{tag}.html", f"#{target}", web)
     return None
 
 
@@ -79,6 +83,23 @@ def main() -> int:
         href = (resolve_href(target, items, root / "output" / "web")
                 if target else None)
         registry[key] = {"html": rec["definition"], "href": href}
+
+    # prose-term entries (prose_terms.py wraps them as <termref>): same
+    # registry, plus a heading label and the "more details" link style
+    prose_path = root / ncfg.get("prose_map", "notation/prose-map.json")
+    if prose_path.exists():
+        prose = {k: v for k, v in json.load(open(prose_path)).items()
+                 if not k.startswith("_")}
+        for key, rec in prose.items():
+            target = rec.get("href") or rec.get("defsite")
+            href = (resolve_href(target, items, root / "output" / "web")
+                    if target else None)
+            entry = {"html": rec["definition"], "href": href}
+            if rec.get("label"):
+                entry["label"] = rec["label"]
+            if rec.get("more", True):
+                entry["more"] = True
+            registry[key] = entry
 
     out = root / "web-assets" / "notation-registry.js"
     out.write_text(

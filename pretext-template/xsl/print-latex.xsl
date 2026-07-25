@@ -7,4 +7,10 @@
              select="'\providecommand{\class}[2]{#2}'"/>
   <!-- formalization badges are an HTML feature; drop in print -->
   <xsl:template match="lean"/>
+  <!-- prose term links are an HTML feature; keep only their text here -->
+  <xsl:template match="termref"><xsl:apply-templates/></xsl:template>
+  <!-- alphabetic bibliography labels (tex2ptx bib-labels option) -->
+  <xsl:template match="biblio[@label]" mode="serial-number">
+    <xsl:value-of select="@label"/>
+  </xsl:template>
 </xsl:stylesheet>

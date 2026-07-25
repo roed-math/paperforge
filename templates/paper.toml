@@ -51,6 +51,8 @@ advice = "style-corpus/ADVICE.md"
 [references]
 pdf_dir = "references/"         # local copies of cited works (for the ref check)
 bib     = "source/references.bib"
+# Alphabetic reference labels + author-name ordering (tex2ptx bib-labels option)
+# labels = "references/bib-labels.json"
 
 [notation]
 # HTML hover affordance: a \notn use more than far_words after its definition
@@ -59,6 +61,10 @@ bib     = "source/references.bib"
 far_words = 1500
 near_hover_delay_ms = 400   # plain symbols
 far_hover_delay_ms = 1000   # \notnfar-marked symbols
+
+# Prose term links (background/terminology hovers): optional map for
+# ingest/prose_terms.py; entries merge into the notation registry.
+# prose_map = "notation/prose-map.json"
 
 [detail]
 default_level = 1              # PDF/default tier: render content with level <= this

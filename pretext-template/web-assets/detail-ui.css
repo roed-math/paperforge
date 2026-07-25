@@ -23,8 +23,12 @@
 }
 
 /* reader turned notation links off: no affordance either */
-body.notation-links-off .ptxfar, body.notation-links-off .ptxfar * {
+body.notation-links-off .ptxfar, body.notation-links-off .ptxfar *,
+body.notation-links-off [class*="ptxnotn-"] {
   cursor: inherit;
+}
+body.notation-links-off [class*="ptxnotn-"]:hover {
+  text-decoration: none;
 }
 
 /* ============ Notation hovers (no knowl underline) ============ */

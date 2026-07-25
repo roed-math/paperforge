@@ -21,6 +21,7 @@ python3 $PF/ingest/tex2ptx.py @@AI_DRAFT@@ \
     --mathbb @@MATHBB_LETTERS@@ \
     --disambig notation/disambiguation.json \
     --extra-biblio references/extra-biblio.xml \
+    --bib-labels references/bib-labels.json \
     --insertions content/insertions
 python3 $PF/ingest/lean_axioms.py @@LEAN_ROOT@@ \
     --current crosswalk/numbering-current.json \
@@ -28,6 +29,9 @@ python3 $PF/ingest/lean_axioms.py @@LEAN_ROOT@@ \
     --out crosswalk/axiom-citations.json \
     --seed-aliases source/main.ptx --aliases-out references/bib-aliases.json
 python3 $PF/ingest/notation_far.py .
+# Prose term links (hover popups on prose terms): wraps <termref> in
+# the generated tree AFTER far-marking; no-op without a prose map
+python3 $PF/ingest/prose_terms.py .
 pretext build web
 # Lazy math typesetting (single-page documents): typeset near the viewport
 # only. PreTeXt owns the MathJax config, so patch the emitted startup module;

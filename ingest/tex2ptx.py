@@ -1136,6 +1136,12 @@ def main() -> int:
                          "with \\notn{key}{...} at conversion time")
     ap.add_argument("--extra-biblio", type=Path,
                     help="biblio fragment file merged into <references>")
+    ap.add_argument("--bib-labels", type=Path,
+                    help="JSON {bib-KEY: {label, sort}}: stamps label=\"..\" "
+                         "on every <biblio> (alphabetic reference style, "
+                         "e.g. [NSW] — the custom XSLs override the biblio "
+                         "serial number with @label) and sorts the merged "
+                         "bibliography by the sort key (author-name order)")
     ap.add_argument("--insertions", type=Path,
                     help="directory of anchored content fragments to merge")
     ap.add_argument("--disambig", type=Path,
@@ -1158,6 +1164,10 @@ def main() -> int:
         set_mathbb(args.mathbb)
     if args.extra_biblio and args.extra_biblio.exists():
         load_extra_biblio(args.extra_biblio)
+    if args.bib_labels and args.bib_labels.exists():
+        BIB_LABELS.update({k: v for k, v in
+                           json.load(open(args.bib_labels)).items()
+                           if not k.startswith("_")})
     if args.insertions and args.insertions.exists():
         load_insertions(args.insertions)
 
@@ -1335,7 +1345,52 @@ def extract_references(secs):
 
 
 EXTRA_BIBLIO: list[str] = []       # <biblio> fragments merged into <references>
+BIB_LABELS: dict[str, dict] = {}   # bib-KEY -> {label, sort} (--bib-labels)
 INSERTIONS: dict[str, list[tuple[str, str]]] = {}  # anchor tag -> [(pos, xml)]
+
+
+def relabel_and_sort_biblio(refs_block: list[str]) -> list[str]:
+    '''Stamp label="..." onto each <biblio> and sort entries by sort key.
+
+    Math-paper convention: alphabetic reference labels ([NSW], [Ser79]) and
+    author-name ordering. Operates on the assembled <references> line block
+    (draft entries + extra-biblio); indentation is normalized downstream by
+    write_tree, so entries are re-emitted on fresh lines.
+    '''
+    text = "\n".join(refs_block)
+    chunks = list(re.finditer(r"<biblio\b.*?</biblio>", text, re.S))
+    if not chunks:
+        return refs_block
+    head = text[:chunks[0].start()].rstrip()
+    tail = text[chunks[-1].end():].strip()
+
+    def prep(chunk: str) -> tuple[str, str]:
+        idm = re.search(r'xml:id="([^"]+)"', chunk)
+        bid = idm.group(1) if idm else ""
+        meta = BIB_LABELS.get(bid)
+        if meta is None:
+            warn(f"bibliography entry '{bid}' missing from --bib-labels "
+                 f"(will render with a serial number)")
+            return bid.lower(), chunk
+        label = meta.get("label")
+        if label and 'label="' not in chunk[:chunk.index(">")]:
+            chunk = re.sub(r"(<biblio\b[^>]*?)(\s*/?>)",
+                           lambda m: m.group(1) + f' label="{label}"'
+                           + m.group(2),
+                           chunk, count=1)
+        return meta.get("sort", bid.lower()), chunk
+
+    prepared = [prep(c.group(0)) for c in chunks]
+    for known in BIB_LABELS:
+        if not any(f'xml:id="{known}"' in c.group(0) for c in chunks):
+            warn(f"--bib-labels entry '{known}' matches no bibliography entry")
+    prepared.sort(key=lambda t: t[0])
+    out = head.split("\n") if head else []
+    for _, chunk in prepared:
+        out.extend(chunk.split("\n"))
+    if tail:
+        out.extend(tail.split("\n"))
+    return out
 
 
 def load_extra_biblio(path: Path) -> None:
@@ -1549,6 +1604,8 @@ def write_tree(outdir: Path, title: str, author: str, macros: str,
         closing = refs_block.pop()          # </references>
         refs_block.extend("      " + b for b in EXTRA_BIBLIO)
         refs_block.append(closing)
+    if refs_block and BIB_LABELS:
+        refs_block = relabel_and_sort_biblio(refs_block)
     main_incl = "\n".join(f'    <xi:include href="./{tag}.ptx"/>'
                           for tag, el, _ in secs if el == "section")
     apx_incl = "\n".join(f'      <xi:include href="./{tag}.ptx"/>'
