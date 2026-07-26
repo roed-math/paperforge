@@ -1145,6 +1145,16 @@ def para_signatures(sm: dict) -> list[dict]:
 
 
 def edit_extract(tag: str, part: str) -> dict:
+    if part == "fragment":
+        r = _find_frag(tag)
+        if r is None:
+            return {"error": f"no fragment paragraph {tag} — the fragment "
+                             "changed; reload the page"}
+        import hashlib
+        return {"tag": tag, "part": part, "latex": r["slice"],
+                "sha": hashlib.sha1(r["slice"].encode()).hexdigest()[:16],
+                "stale": False,
+                "file": str(r["file"].relative_to(ROOT))}
     sm = _load_source_map()
     if sm is None:
         return {"error": "no source map — rebuild with --source-map"}
@@ -1155,7 +1165,48 @@ def edit_extract(tag: str, part: str) -> dict:
             "stale": cur != rec["sha"], "file": sm["draft"]}
 
 
+def _frag_gate(old: str, new: str) -> str | None:
+    """Deterministic gate for a fragment-paragraph edit: the replacement
+    must still be exactly one well-formed <p> element, and any xml:id must
+    survive verbatim (they are stable anchors)."""
+    from xml.dom import minidom
+    try:
+        doc = minidom.parseString("<pf-root>" + new + "</pf-root>")
+    except Exception as e:
+        return f"not well-formed XML: {e}"
+    kids = [n for n in doc.documentElement.childNodes
+            if n.nodeType == n.ELEMENT_NODE]
+    stray = any(n.nodeType == n.TEXT_NODE and n.data.strip()
+                for n in doc.documentElement.childNodes)
+    if len(kids) != 1 or kids[0].tagName != "p" or stray:
+        return "the replacement must be a single <p> element"
+    for xid in re.findall(r'xml:id="[^"]*"', old):
+        if xid not in new:
+            return f'{xid} must be kept — it is a stable anchor'
+    return None
+
+
 def edit_save(tag: str, part: str, latex: str, sha: str) -> dict:
+    if part == "fragment":
+        import hashlib
+        r = _find_frag(tag)
+        if r is None:
+            return {"error": f"no fragment paragraph {tag} — the fragment "
+                             "changed; reload the page", "stale": True}
+        cur = hashlib.sha1(r["slice"].encode()).hexdigest()[:16]
+        if cur != sha:
+            return {"error": "stale: the fragment changed under this "
+                             "paragraph — reopen the editor", "stale": True}
+        why = _frag_gate(r["slice"], latex)
+        if why:
+            return {"error": why}
+        with _WRITE_LOCK:
+            text = r["file"].read_text()
+            if text[r["start"]:r["end"]] != r["slice"]:
+                return {"error": "stale: concurrent change", "stale": True}
+            r["file"].write_text(
+                text[:r["start"]] + latex + text[r["end"]:])
+        return {"ok": True, "job": run_rebuild_job()}
     sm = _load_source_map()
     if sm is None:
         return {"error": "no source map"}
@@ -1180,6 +1231,276 @@ def edit_save(tag: str, part: str, latex: str, sha: str) -> dict:
     draft.write_text(text[:rec["start"]] + latex + text[rec["end"]:])
     job = run_rebuild_job()
     return {"ok": True, "job": job}
+
+
+# --------------------------------------------------- fragment paragraphs
+# Insertion fragments (content/insertions/*.ptx) own prose the draft never
+# sees — the woven-in paragraphs the source map cannot cover. Their <p>
+# elements get the same ✎/🗑 affordances; a fragment paragraph is addressed
+# by the sha of its current slice, so the address is position-free and
+# edits/deletions of sibling paragraphs never invalidate it.
+
+INSERTIONS_DIR = ROOT / "content" / "insertions"
+_FRAG_P = re.compile(r"<p(?:\s[^>]*)?>.*?</p>", re.S)
+_XML_DROP = [
+    (re.compile(r"<(m|me|md)(?:\s[^>]*)?>.*?</\1>", re.S), " "),
+    (re.compile(r"<!--.*?-->", re.S), " "),
+    (re.compile(r"<[^>]+>"), " "),
+]
+
+
+def _frag_words(xml: str) -> list[str]:
+    for rx, rep in _XML_DROP:
+        xml = rx.sub(rep, xml)
+    xml = xml.replace("&amp;", "&")
+    return [w.lower() for w in re.findall(r"[A-Za-z]{3,}", xml)]
+
+
+def fragment_paras() -> list[dict]:
+    import hashlib
+    out: list[dict] = []
+    if not INSERTIONS_DIR.is_dir():
+        return out
+    for f in sorted(INSERTIONS_DIR.glob("*.ptx")):
+        text = f.read_text()
+        for m in _FRAG_P.finditer(text):
+            sl = m.group(0)
+            out.append({"file": f, "start": m.start(), "end": m.end(),
+                        "slice": sl, "tag": "frag-" +
+                        hashlib.sha1(sl.encode()).hexdigest()[:12]})
+    return out
+
+
+def frag_signatures() -> list[dict]:
+    """Word signatures for every insertion-fragment paragraph — same
+    matching contract as para_signatures."""
+    out = []
+    for r in fragment_paras():
+        words = _frag_words(r["slice"])
+        if len(words) >= 5:
+            out.append({"tag": r["tag"], "words": words})
+    return out
+
+
+def _find_frag(tag: str) -> dict | None:
+    for r in fragment_paras():
+        if r["tag"] == tag:
+            return r
+    return None
+
+
+# ------------------------------------------------------------- deletions
+# 🗑 in the paper view: remove a block (statement+proof envelope, proof,
+# prose paragraph, or fragment paragraph) from its source file WITHOUT an
+# immediate rebuild, so an accidental click is recoverable. Every deletion
+# pushes an undo record onto directives/edit-undo.json; /api/delete-undo
+# pops the most recent one (LIFO) and reinserts the text verbatim. Draft
+# deletions also update crosswalk/source-map.json in place — tombstone the
+# removed records, shift offsets past the cut — so further edits and
+# deletions keep working before the deferred rebuild runs.
+
+UNDO_PATH = ROOT / "directives" / "edit-undo.json"
+
+
+def _load_undo() -> list:
+    if UNDO_PATH.exists():
+        try:
+            return json.load(open(UNDO_PATH))
+        except Exception:
+            return []
+    return []
+
+
+def _file_sha(text: str) -> str:
+    import hashlib
+    return hashlib.sha1(text.encode()).hexdigest()[:16]
+
+
+def _expand_cut(text: str, a: int, b: int) -> tuple[int, int]:
+    """Widen [a,b) so the removal leaves clean whitespace: eat spaces/tabs
+    back to the start of the line, and everything through trailing blank
+    space up to the next non-whitespace character (or EOF)."""
+    while a > 0 and text[a - 1] in " \t":
+        a -= 1
+    while b < len(text) and text[b] in " \t\n":
+        b += 1
+    return a, b
+
+
+def _map_cut(sm: dict, a: int, b: int) -> dict:
+    """Update the loaded source map for a draft cut [a,b): tombstone the
+    records inside the cut, shift the ones after it. Returns the removed
+    records (for undo)."""
+    delta = b - a
+    removed: dict = {"spans": {}, "paras": {}}
+    spans = sm.get("spans") or {}
+    for tag in list(spans):
+        parts = spans[tag]
+        for part in list(parts):
+            rec = parts[part]
+            if rec["start"] >= b:
+                rec["start"] -= delta
+                rec["end"] -= delta
+            elif rec["end"] > a:
+                removed["spans"].setdefault(tag, {})[part] = rec
+                del parts[part]
+        if not parts:
+            del spans[tag]
+    for i, rec in enumerate(sm.get("paras") or []):
+        if "start" not in rec:
+            continue
+        if rec["start"] >= b:
+            rec["start"] -= delta
+            rec["end"] -= delta
+        elif rec["end"] > a:
+            removed["paras"][str(i)] = rec
+            sm["paras"][i] = {"deleted": True}
+    return removed
+
+
+def _map_uncut(sm: dict, a: int, length: int, removed: dict) -> None:
+    """Reverse _map_cut after the text is reinserted at offset a."""
+    for parts in (sm.get("spans") or {}).values():
+        for rec in parts.values():
+            if rec["start"] >= a:
+                rec["start"] += length
+                rec["end"] += length
+    for rec in (sm.get("paras") or []):
+        if "start" in rec and rec["start"] >= a:
+            rec["start"] += length
+            rec["end"] += length
+    for tag, parts in (removed.get("spans") or {}).items():
+        sm.setdefault("spans", {}).setdefault(tag, {}).update(parts)
+    lst = sm.get("paras") or []
+    for i_s, rec in (removed.get("paras") or {}).items():
+        i = int(i_s)
+        if i < len(lst) and "start" not in lst[i]:
+            lst[i] = rec
+
+
+_REF_MACROS = re.compile(
+    r"\\(?:[cC]ref|ref|eqref|hyperref|nameref|autoref)\*?"
+    r"(?:\[[^\]]*\])?\{([^{}]*)\}")
+
+
+def _dangling_refs(cut: str, remaining: str) -> list[str]:
+    """References that would dangle if `cut` were removed from the draft:
+    \\cref-family uses of labels defined inside the cut, in the surviving
+    draft or in insertion fragments (which xref the tagified label)."""
+    labels = set(re.findall(r"\\label\{([^{}]+)\}", cut))
+    if not labels:
+        return []
+    hits = []
+    for m in _REF_MACROS.finditer(remaining):
+        for lab in m.group(1).split(","):
+            if lab.strip() in labels:
+                hits.append(m.group(0))
+    import sys as _sys
+    ingest = HERE.parent / "ingest"
+    if str(ingest) not in _sys.path:
+        _sys.path.insert(0, str(ingest))
+    import tex2ptx
+    if INSERTIONS_DIR.is_dir():
+        for f in sorted(INSERTIONS_DIR.glob("*.ptx")):
+            text = f.read_text()
+            for lab in labels:
+                t = tex2ptx.tagify(lab)
+                if f'ref="{t}"' in text:
+                    hits.append(f"{f.name}: xref to {t}")
+    return hits
+
+
+def delete_block(tag: str, part: str, force: bool) -> dict:
+    import time
+    sm = None
+    if part == "fragment":
+        r = _find_frag(tag)
+        if r is None:
+            return {"error": f"no fragment paragraph {tag} — the fragment "
+                             "changed; reload the page"}
+        path, region = r["file"], (r["start"], r["end"])
+    else:
+        sm = _load_source_map()
+        if sm is None:
+            return {"error": "no source map — rebuild with --source-map"}
+        map_part = {"statement": "envelope", "proof": "proof_envelope",
+                    "paragraph": "paragraph"}.get(part)
+        if map_part is None:
+            return {"error": f"unknown part {part!r}"}
+        sl, cur, rec = _slice_rec(sm, tag, map_part)
+        if rec is None:
+            return {"error": f"no deletable span for {tag} ({part}) — "
+                             "rebuild to refresh the source map"}
+        if cur != rec["sha"]:
+            return {"error": "stale: the draft changed under this block — "
+                             "rebuild before deleting", "stale": True}
+        path, region = Path(sm["draft"]), (rec["start"], rec["end"])
+    with _WRITE_LOCK:
+        text = path.read_text()
+        a, b = _expand_cut(text, *region)
+        cut = text[a:b]
+        if not cut.strip():
+            return {"error": "stale span (empty cut) — rebuild first"}
+        if part != "fragment" and not force:
+            refs = _dangling_refs(cut, text[:a] + text[b:])
+            if refs:
+                return {"refs": sorted(set(refs))[:12],
+                        "reason": "labels defined in this block are "
+                                  "referenced elsewhere"}
+        path.write_text(text[:a] + text[b:])
+        entry = {"id": f"del-{int(time.time() * 1000)}", "ts": time.ctime(),
+                 "file": str(path), "offset": a, "text": cut,
+                 "tag": tag, "part": part,
+                 "post_sha": _file_sha(text[:a] + text[b:])}
+        if sm is not None:
+            entry["map_removed"] = _map_cut(sm, a, b)
+            atomic_dump(sm, SOURCE_MAP)
+        undo = _load_undo()
+        undo.append(entry)
+        UNDO_PATH.parent.mkdir(parents=True, exist_ok=True)
+        atomic_dump(undo, UNDO_PATH)
+    return {"ok": True, "id": entry["id"], "pending": len(undo),
+            "chars": len(cut)}
+
+
+def delete_undo(entry_id: str | None) -> dict:
+    with _WRITE_LOCK:
+        undo = _load_undo()
+        if not undo:
+            return {"error": "nothing to undo"}
+        top = undo[-1]
+        if entry_id and top["id"] != entry_id:
+            return {"error": "a later deletion exists — undo is "
+                             "last-in-first-out; undo that one first "
+                             "(the pill's 'undo last')"}
+        path = Path(top["file"])
+        text = path.read_text()
+        if _file_sha(text) != top["post_sha"]:
+            return {"error": "the file changed after this deletion — undo "
+                             "is no longer safe (restore from git instead)"}
+        a = top["offset"]
+        path.write_text(text[:a] + top["text"] + text[a:])
+        if top.get("map_removed") is not None:
+            sm = _load_source_map()
+            if sm is not None:
+                _map_uncut(sm, a, len(top["text"]), top["map_removed"])
+                atomic_dump(sm, SOURCE_MAP)
+        undo.pop()
+        atomic_dump(undo, UNDO_PATH)
+    return {"ok": True, "pending": len(undo), "tag": top["tag"],
+            "part": top["part"]}
+
+
+def pending_deletions() -> list[dict]:
+    out = []
+    for e in _load_undo():
+        try:
+            rel = str(Path(e["file"]).relative_to(ROOT))
+        except ValueError:
+            rel = e["file"]
+        out.append({"id": e["id"], "tag": e["tag"], "part": e["part"],
+                    "ts": e["ts"], "chars": len(e["text"]), "file": rel})
+    return out
 
 
 def bib_add(req: dict):
@@ -1391,7 +1712,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({
                 "tags": {t: sorted(r) for t, r in
                          (sm.get("spans") or {}).items()} if sm else {},
-                "paras": para_signatures(sm) if sm else []})
+                "paras": para_signatures(sm) if sm else [],
+                "frags": frag_signatures()})
+        if url.path == "/api/deletions":
+            return self._json({"pending": pending_deletions()})
         if url.path == "/api/edit":
             q = parse_qs(url.query)
             return self._json(edit_extract(q.get("tag", [""])[0],
@@ -1573,6 +1897,22 @@ class Handler(SimpleHTTPRequestHandler):
                             req.get("part", "statement"),
                             req.get("latex", ""), req.get("sha", ""))
             return self._json(out, 409 if out.get("stale") else 200)
+        if self.path == "/api/delete":
+            try:
+                out = delete_block(req.get("tag", ""),
+                                   req.get("part", "statement"),
+                                   bool(req.get("force")))
+            except Exception as e:
+                out = {"error": f"{type(e).__name__}: {e}"}
+            return self._json(out, 409 if out.get("stale") else 200)
+        if self.path == "/api/delete-undo":
+            try:
+                out = delete_undo(req.get("id"))
+            except Exception as e:
+                out = {"error": f"{type(e).__name__}: {e}"}
+            return self._json(out)
+        if self.path == "/api/rebuild":
+            return self._json({"ok": True, "job": run_rebuild_job()})
         if self.path == "/api/bib-add":
             try:
                 out, code = bib_add(req)

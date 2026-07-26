@@ -61,6 +61,14 @@ LAZY_ALWAYS = ["div.knowl__content[id^=knowl-uid-]", ".lean-knowl",
                ".section-knowl", ".pfm-panel", ".notation-popup",
                ".eqrange-knowl", ".pfe-preview"]
 
+# Math-mode compatibility: booktabs rules appear inside display-math arrays
+# in some drafts (LaTeX accepts them there when booktabs is loaded), but
+# MathJax has no booktabs extension and renders each as a red 'undefined
+# control sequence'. Map them to the closest core primitive; author-defined
+# macros of the same name win.
+COMPAT_MACROS = {"toprule": "\\hline", "midrule": "\\hline",
+                 "bottomrule": "\\hline"}
+
 
 def inject(target: Path, macros: dict) -> bool:
     text = target.read_text()
@@ -86,7 +94,7 @@ def main():
     m = re.search(r"<macros>(.*?)</macros>", src, re.S)
     if not m:
         sys.exit("no <macros> block in source/main.ptx")
-    macros = parse_macros(m.group(1))
+    macros = {**COMPAT_MACROS, **parse_macros(m.group(1))}
     done = []
     for rel in ("output/web/_static/pretext/js/mathjax_startup.js",
                 "output/web/_static/pretext/js/dist/mathjax_startup.js"):

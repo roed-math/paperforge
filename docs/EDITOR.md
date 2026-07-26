@@ -12,10 +12,38 @@ their draft spans as `paras` in the source map (segmentation mirrors
 parse_blocks: blank lines split, display math joins, known envs break);
 they carry no labels and PreTeXt paragraph ids are positional (insertion
 fragments shift them), so the paper view anchors each span by matching
-its prose words (math/macros stripped) against rendered paragraphs —
-woven-in insertion paragraphs match nothing and get no ✎. Edits address
-`tag=para-N, part=paragraph` through the same splice/sha/structural-gate
-path. The review
+its prose words (math/macros stripped) against rendered paragraphs.
+Edits address `tag=para-N, part=paragraph` through the same
+splice/sha/structural-gate path.
+
+2026-07-26: three further extensions.
+- **Insertion-fragment paragraphs** (`part=fragment`): the woven-in
+  paragraphs the source map cannot cover now carry ✎ too. The server
+  scans `content/insertions/*.ptx` for `<p>` elements per request and
+  addresses each by the sha of its slice (`frag-<sha12>`) — position-free,
+  so sibling edits never invalidate an address. The editor shows the
+  fragment's PreTeXt XML; save is gated deterministically (must stay a
+  single well-formed `<p>`, xml:ids preserved) and rebuilds. The
+  citation picker inserts `<xref ref="bib-KEY"/>` instead of `\cite`.
+- **Statements behind born-hidden knowls** (remarks in the gq2 build)
+  get their ✎ inside the `<details>` summary heading — previously the
+  `:scope > .heading` lookup silently skipped them.
+- **Deletion with undo** (🗑 wherever ✎ exists): removes the block from
+  its source file — the whole `\begin{env}…\end{env}` plus trailing
+  proof for statements (new `envelope`/`proof_envelope` spans in the
+  source map), the para span, or the fragment `<p>` — **without**
+  rebuilding. Each deletion pushes an undo record onto
+  `directives/edit-undo.json`; the deleted block stays on the page under
+  a dashed overlay with an in-place `undo` chip, and a floating pill
+  shows "N deletions pending rebuild — undo last · rebuild now". Undo is
+  LIFO and verifies a whole-file sha before splicing the text back, so a
+  stack of deletions before one rebuild is safe. Draft deletions update
+  `crosswalk/source-map.json` in place (tombstone removed records, shift
+  offsets) so later edits/deletions keep working pre-rebuild. Deleting a
+  block whose `\label`s are referenced elsewhere warns with the ref list
+  and requires a confirm (`force`).
+
+The review
 process has grown into a specialized editor; this note reorients the
 tooling around that fact. The **paper view is the primary surface**; the
 dashboard demotes to a project drawer for things that are inherently

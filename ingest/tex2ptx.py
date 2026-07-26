@@ -892,6 +892,7 @@ def build_source_map(parse_tex: str, orig_tex: str) -> dict:
         s0, s1 = to_orig(m.end() + p), to_orig(body_end)
         if s0 is not None and s1 is not None:
             rec["statement"] = [s0, s1]
+        blk_end = end
         prm = re.compile(r"\s*\\begin\{proof\}").match(parse_tex, end)
         if prm:
             try:
@@ -902,8 +903,18 @@ def build_source_map(parse_tex: str, orig_tex: str) -> dict:
                 p0, p1 = to_orig(prm.end() + pp), to_orig(pbody_end)
                 if p0 is not None and p1 is not None:
                     rec["proof"] = [p0, p1]
+                q0 = to_orig(parse_tex.index("\\begin{proof}", end))
+                q1 = to_orig(pend)
+                if q0 is not None and q1 is not None:
+                    rec["proof_envelope"] = [q0, q1]
+                blk_end = pend
             except ValueError:
                 pass
+        # whole-block extent (\begin{env} through \end{env}, plus the
+        # trailing proof when present) — what a deletion removes
+        e0, e1 = to_orig(m.start()), to_orig(blk_end)
+        if e0 is not None and e1 is not None:
+            rec["envelope"] = [e0, e1]
         if rec:
             for part, (a, b) in rec.items():
                 rec[part] = {
