@@ -82,3 +82,20 @@ Derived data: idempotent, recomputed after edits, never hand-written.
 Pre-definition uses are left unmarked (that is a `notation_order` error).
 Print safety: `\providecommand{\class}[2]{#2}` is injected into the LaTeX
 preamble (arxiv/print XSLs) so both macros degrade to their symbol in PDF.
+
+## Equation-range knowls
+
+A range citation "(1.1)–(1.3)" is authored as two `\eqref`s around an en
+dash, so PreTeXt gives knowls only for the endpoints. detail-ui's
+`wireEquationRanges()` detects the pattern (equation xref, en-dash text
+node, equation xref), checks that the display-math elements between the
+endpoints match the printed numbering, and wraps the whole range in one
+click target: clicking opens a single stacked panel showing EVERY equation
+in the range. Content is re-typeset from MathJax's stored TeX
+(`getMathItemsWithin`) — so middle equations need neither a knowl file
+(never cross-referenced) nor prior lazy typesetting — with the stored
+`\tag{...}` kept (the printed numbers) and `\label`s stripped (duplicate
+labels are MathJax errors). `\notn` wrappers survive, so notation hovers
+work inside the panel; `.eqrange-knowl` is in mathjax_macros.py's
+lazyAlwaysTypeset list. The panel's "view in context" uses the landingGo
+highlight (no :target flash).

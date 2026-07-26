@@ -1182,6 +1182,61 @@ def edit_save(tag: str, part: str, latex: str, sha: str) -> dict:
     return {"ok": True, "job": job}
 
 
+def bib_add(req: dict):
+    """Add a bibliography entry: append <biblio> to references/
+    extra-biblio.xml (entry text is inline LaTeX, converted by the SAME
+    converter as the paper), record label+sort in references/bib-labels.json
+    (alphabetic reference style), and start a rebuild job. Returns
+    (payload, http_status)."""
+    import sys as _sys
+    key = (req.get("key") or "").strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", key):
+        return {"error": "key must be alphanumeric, starting with a letter "
+                         "(cite as \\cite{KEY})"}, 400
+    bid = f"bib-{key}"
+    if bid in collect_bib():
+        return {"error": f"{bid} already exists"}, 400
+    latex = (req.get("entry") or "").strip()
+    if not latex:
+        return {"error": "entry text is required (inline LaTeX)"}, 400
+    label = (req.get("label") or "").strip() or key[:3]
+    sort = (req.get("sort") or "").strip().lower()
+    if not sort:
+        return {"error": "sort key is required (author-name order, "
+                         "e.g. 'iwasawa 1986')"}, 400
+    ingest = HERE.parent / "ingest"
+    if str(ingest) not in _sys.path:
+        _sys.path.insert(0, str(ingest))
+    import tex2ptx
+    xml = tex2ptx.convert_inline(" ".join(latex.split()),
+                                 tex2ptx.RefMap(set()))
+    extra = ROOT / "references" / "extra-biblio.xml"
+    text = extra.read_text()
+    close = "</references-extra>"
+    if close not in text:
+        return {"error": f"no {close} root in extra-biblio.xml"}, 500
+    entry = f'<biblio type="raw" xml:id="{bid}">\n{xml}\n</biblio>\n'
+    labels_path = ROOT / "references" / "bib-labels.json"
+    with _WRITE_LOCK:
+        extra.write_text(text.replace(close, entry + close))
+        labels = (json.load(open(labels_path))
+                  if labels_path.exists() else {})
+        dup = [k for k, v in labels.items()
+               if not k.startswith("_") and v.get("label") == label]
+        labels[bid] = {"label": label, "sort": sort}
+        meta = {k: v for k, v in labels.items() if k.startswith("_")}
+        rest = {k: labels[k] for k in sorted(labels)
+                if not k.startswith("_")}
+        labels_path.write_text(json.dumps({**meta, **rest}, indent=1,
+                                          ensure_ascii=False) + "\n")
+    job = run_rebuild_job()
+    out = {"ok": True, "key": bid, "job": job}
+    if dup:
+        out["warning"] = (f"label '{label}' collides with {', '.join(dup)} "
+                          "— consider year suffixes (Ser63/Ser79 style)")
+    return out, 200
+
+
 def _job_env() -> dict:
     """Subprocess env for jobs: the server's interpreter dir leads PATH so
     `python3`/`pretext` in build scripts resolve to the same stack the
@@ -1518,6 +1573,12 @@ class Handler(SimpleHTTPRequestHandler):
                             req.get("part", "statement"),
                             req.get("latex", ""), req.get("sha", ""))
             return self._json(out, 409 if out.get("stale") else 200)
+        if self.path == "/api/bib-add":
+            try:
+                out, code = bib_add(req)
+            except Exception as e:
+                out, code = {"error": str(e)}, 500
+            return self._json(out, code)
         if self.path == "/api/validate":
             try:
                 return self._json(run_validators())

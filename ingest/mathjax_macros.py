@@ -58,7 +58,8 @@ def parse_macros(block: str) -> dict:
 
 
 LAZY_ALWAYS = ["div.knowl__content[id^=knowl-uid-]", ".lean-knowl",
-               ".section-knowl", ".pfm-panel", ".notation-popup"]
+               ".section-knowl", ".pfm-panel", ".notation-popup",
+               ".eqrange-knowl", ".pfe-preview"]
 
 
 def inject(target: Path, macros: dict) -> bool:

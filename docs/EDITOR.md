@@ -122,3 +122,26 @@ lane bypasses validators.
    and the piece that makes "paper view = editor" true.
 4. Lane-2 briefings ("apply this LaTeX at this anchor") — mostly prompt
    engineering on the dispatch layer.
+
+## Citing and adding references from the paper view
+
+Three affordances (review layer, docs/REVIEW.md conventions):
+
+- **\cite discovery** (paper-tags.js): every entry in the References list
+  and every inline citation "[NSW, …]" carries a hover badge showing its
+  `\cite{KEY}`; click copies. Entry lookup goes through
+  references/bib-labels.json because with alphabetic labels the rendered
+  biblio ids ARE the labels (the serial-number override feeds PreTeXt's
+  biblio ids); citation keys are parsed from the knowl path
+  (`knowl/xref/bib-KEY.html`).
+- **Citation picker** (paper-edit.js): the ✎ editor's toolbar has a
+  `\cite…` select fed by /api/bib; choosing a key inserts `\cite{KEY}` at
+  the cursor and refreshes the preview.
+- **Add a reference** (paper-tags.js + /api/bib-add): the "+ reference"
+  button on the References heading opens a form (key, label, sort, entry
+  as inline LaTeX). The server converts the entry with the SAME converter
+  as the paper (tex2ptx.convert_inline), appends it to
+  references/extra-biblio.xml, records {label, sort} in
+  references/bib-labels.json (warning on label collisions — use year
+  suffixes), and starts a rebuild job. `\cite{KEY}` is copied to the
+  clipboard on success.

@@ -30,6 +30,29 @@
     return m ? +m[1] : 0;
   }
 
+  // Jump to #frag WITHOUT engaging the browser's :target styling (the theme
+  // flashes the whole target block for 10s), then paint the specific
+  // referenced element — occEl when given, else the target's heading — and
+  // fade it out over five seconds.
+  function landingGo(frag, occEl) {
+    var target = document.getElementById(frag);
+    if (!target) return false;
+    var hl = occEl || target.querySelector(".heading") || target;
+    (occEl || target).scrollIntoView(occEl ? {block: "center"}
+                                           : {block: "start"});
+    if (window.history && history.pushState) {
+      history.pushState(null, "", "#" + frag);
+    }
+    hl.classList.remove("pf-landing-fade");
+    hl.classList.add("pf-landing-hl");
+    void hl.offsetWidth;                      // commit the painted state
+    hl.classList.add("pf-landing-fade");
+    setTimeout(function () {
+      hl.classList.remove("pf-landing-hl", "pf-landing-fade");
+    }, 5200);
+    return true;
+  }
+
   // Reveal machinery: tier elements are either born-hidden <details> knowls
   // (opened directly) or inline blocks like <p detail-level="2"> (revealed by
   // a `show-dl-N` class on a container — body for the global slider, the
@@ -260,8 +283,7 @@
     // Following a context link: instead of the theme's whole-block :target
     // flash, jump there and paint ONLY the specific referenced text — the
     // defining occurrence of the term when the target block carries one,
-    // else the target's heading — fading out over five seconds. pushState
-    // updates the URL without engaging the browser's :target styling.
+    // else the target's heading (landingGo).
     pop.addEventListener("click", function (e) {
       var a = e.target.closest ? e.target.closest(".notation-ctx-link") : null;
       if (!a) return;
@@ -271,26 +293,11 @@
       if (i < 0) return;
       var page = href.slice(0, i).split("/").pop();
       if (page && page !== location.pathname.split("/").pop()) return;
-      var frag = href.slice(i + 1);
-      var target = document.getElementById(frag);
-      if (!target) return;
+      var occ = pop._entry ? defOccurrence(pop._entry, pop._key) : null;
+      if (!landingGo(href.slice(i + 1), occ)) return;
       e.preventDefault();
       pop.classList.remove("show");
       clearMarks();
-      var occ = pop._entry ? defOccurrence(pop._entry, pop._key) : null;
-      var hl = occ || target.querySelector(".heading") || target;
-      (occ || target).scrollIntoView(occ ? {block: "center"}
-                                         : {block: "start"});
-      if (window.history && history.pushState) {
-        history.pushState(null, "", "#" + frag);
-      }
-      hl.classList.remove("pf-landing-fade");
-      hl.classList.add("pf-landing-hl");
-      void hl.offsetWidth;                    // commit the painted state
-      hl.classList.add("pf-landing-fade");
-      setTimeout(function () {
-        hl.classList.remove("pf-landing-hl", "pf-landing-fade");
-      }, 5200);
     });
 
     function keyOf(el) {
@@ -405,6 +412,108 @@
     });
   }
 
+  // Equation ranges: "(1.1)–(1.3)" is authored as two equation xrefs around
+  // an en dash, so only the endpoints open as knowls. Make the whole range
+  // ONE click target that opens every equation in the range — endpoints and
+  // middles alike — in a single stacked panel. Content is re-typeset from
+  // MathJax's stored TeX (getMathItemsWithin), so it works even for middle
+  // equations that were never cross-referenced (no knowl file) or not yet
+  // lazily typeset; \notn wrappers survive, so notation hovers work inside.
+  function wireEquationRanges() {
+    function eqTarget(a) {
+      var href = a.getAttribute("href") || "";
+      if (href.charAt(0) !== "#") return null;
+      var el = document.getElementById(href.slice(1));
+      return el && el.classList.contains("displaymath") ? el : null;
+    }
+    function eqNum(a) {   // "(1.3)" -> {prefix: "1.", n: 3}
+      var m = /^\((?:([0-9A-Za-z.]+)\.)?(\d+)\)$/.exec(a.textContent.trim());
+      return m ? {prefix: m[1] ? m[1] + "." : "", n: +m[2]} : null;
+    }
+    var anchors = Array.prototype.slice.call(
+      document.querySelectorAll('.ptx-content a[data-knowl][href^="#"]'));
+    anchors.forEach(function (a1) {
+      var dash = a1.nextSibling;
+      if (!dash || dash.nodeType !== 3 ||
+          dash.textContent.trim() !== "–") return;
+      var a2 = dash.nextSibling;
+      if (!a2 || a2.nodeType !== 1 ||
+          !a2.matches('a[data-knowl][href^="#"]')) return;
+      var e1 = eqTarget(a1), e2 = eqTarget(a2);
+      var n1 = eqNum(a1), n2 = eqNum(a2);
+      if (!e1 || !e2 || !n1 || !n2) return;
+      if (n1.prefix !== n2.prefix || n2.n <= n1.n) return;
+      var all = Array.prototype.slice.call(
+        document.querySelectorAll("div.displaymath[id]"));
+      var i1 = all.indexOf(e1), i2 = all.indexOf(e2);
+      if (i1 < 0 || i2 <= i1) return;
+      var eqs = all.slice(i1, i2 + 1);
+      if (eqs.length !== n2.n - n1.n + 1) return;  // numbering mismatch: bail
+      var span = document.createElement("span");
+      span.className = "eqrange";
+      span.title = "show equations " + a1.textContent + "–" +
+                   a2.textContent;
+      a1.parentNode.insertBefore(span, a1);
+      span.appendChild(a1);
+      span.appendChild(dash);
+      span.appendChild(a2);
+      span.addEventListener("click", function (e) {
+        if (e.metaKey || e.ctrlKey || e.shiftKey) return;   // allow new-tab
+        e.preventDefault();
+        e.stopPropagation();
+        if (span._panel && span._panel.isConnected) {
+          span._panel.remove();
+          span._panel = null;
+          return;
+        }
+        var doc = window.MathJax && MathJax.startup && MathJax.startup.document;
+        var parts = eqs.map(function (eq) {
+          var tex = null;
+          if (doc && doc.getMathItemsWithin) {
+            var items = doc.getMathItemsWithin(eq);
+            if (items.length === 1) tex = items[0].math;
+          }
+          if (tex == null) return null;
+          // the stored TeX carries its own \tag{...} (the printed number);
+          // strip only the environment and any \label (re-typesetting a
+          // duplicate label is a MathJax error)
+          tex = tex.replace(/\\begin\{equation\*?\}|\\end\{equation\*?\}/g, "")
+                   .replace(/\\label\{[^{}]*\}/g, "");
+          return "\\[" + tex + "\\]";
+        });
+        if (parts.indexOf(null) >= 0) {
+          a1.click();          // stored TeX unavailable: at least open the
+          a2.click();          // endpoint knowls the classical way
+          return;
+        }
+        var panel = document.createElement("div");
+        panel.className = "eqrange-knowl";
+        panel.innerHTML = parts.join("\n");
+        var foot = document.createElement("div");
+        foot.className = "eqrange-knowl-foot";
+        var ctx = document.createElement("a");
+        ctx.href = "#" + e1.id;
+        ctx.textContent = "view in context ↗";
+        ctx.addEventListener("click", function (ev) {
+          if (ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          panel.remove();
+          span._panel = null;
+          landingGo(e1.id, e1);
+        });
+        foot.appendChild(ctx);
+        panel.appendChild(foot);
+        var host = span.closest(".para, li, .knowl__content") || span;
+        host.insertAdjacentElement("afterend", panel);
+        span._panel = panel;
+        if (window.MathJax && MathJax.typesetPromise) {
+          MathJax.typesetPromise([panel]).catch(function () {});
+        }
+      }, true);      // capture: beat the anchors' own knowl handlers
+    });
+  }
+
   // Lean badges open the declaration's doc entry inline, knowl-style, when
   // the build-time registry (lean-knowls.js) has it; otherwise (or on
   // modified click) they navigate to the docs as plain links.
@@ -497,6 +606,7 @@
     wireProofDetails();
     wireStatementDetails();
     wireNotation();
+    wireEquationRanges();
     wireLeanKnowls();
     wireSectionSummaries();
   });

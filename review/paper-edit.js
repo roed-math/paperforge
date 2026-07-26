@@ -51,6 +51,9 @@
         color:#fff }
       .pfe-status { font-size:.8rem; color:#5c6470 }
       .pfe-status.err { color:#b91c1c }
+      .pfe-cite { max-width:15rem; font-size:.78rem; border:1px solid
+        #d8dce3; border-radius:6px; background:#fff; color:#16181d;
+        padding:.2rem }
       .pfe-preview { max-height:11rem; overflow:auto; margin-top:.45rem;
         background:rgba(128,128,128,.07); border-radius:6px;
         padding:.45rem .6rem; font-size:.92em }
@@ -63,6 +66,15 @@
 
     let panel = null;
     function closePanel() { if (panel) { panel.remove(); panel = null; } }
+
+    let _bib = null;
+    async function fetchBib() {
+      if (_bib === null) {
+        try { _bib = await (await fetch("/api/bib")).json(); }
+        catch (e) { _bib = {}; }
+      }
+      return _bib;
+    }
 
     async function openEditor(tag, part) {
       closePanel();
@@ -165,8 +177,33 @@
           }
         }, 2500);
       };
+      // citation picker: inserts \cite{KEY} at the cursor (keys are the
+      // bibliography ids minus the bib- prefix; hover any entry in the
+      // References list, or any inline [KEY] citation, for its badge)
+      const cite = document.createElement("select");
+      cite.className = "pfe-cite";
+      cite.title = "insert a citation at the cursor";
+      cite.append(new Option("\\cite… (insert citation)", ""));
+      fetchBib().then(b => {
+        Object.keys(b).sort().forEach(k => {
+          if (!k.startsWith("bib-")) return;
+          cite.append(new Option(k.slice(4) + " — " + (b[k].short || ""),
+                                 k.slice(4)));
+        });
+      });
+      cite.onchange = () => {
+        if (!cite.value) return;
+        const ins = "\\cite{" + cite.value + "}";
+        const s = ta.selectionStart, e2 = ta.selectionEnd;
+        ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e2);
+        ta.selectionStart = ta.selectionEnd = s + ins.length;
+        cite.value = "";
+        ta.focus();
+        ta.dispatchEvent(new Event("input"));
+      };
+
       const row = el("div", "pfe-row");
-      row.append(save, cancel, status);
+      row.append(save, cancel, cite, status);
       panel.append(ta, row,
                    el("div", "pfe-status", "preview:"), preview);
       document.body.appendChild(panel);
