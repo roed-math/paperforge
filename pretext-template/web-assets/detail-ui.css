@@ -103,6 +103,21 @@ article.theorem-like > .lean-link::before { content: "⚙ "; }
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="8.5" fill="black" stroke="white" stroke-width="1.5"/><text x="10" y="14" font-size="12" font-weight="bold" text-anchor="middle" fill="white">=</text></svg>') 10 10, default;
 }
 
+/* landing highlight: following a popup context link paints the specific
+   referenced text (the defining occurrence, or the target's heading) and
+   fades it out over five seconds — replacing the theme's whole-block
+   :target flash, which the pushState navigation deliberately bypasses */
+.pf-landing-hl {
+  background: rgba(255, 196, 0, 0.45);
+  box-shadow: 0 0 0 5px rgba(255, 196, 0, 0.45);
+  border-radius: 4px;
+}
+.pf-landing-hl.pf-landing-fade {
+  background: rgba(255, 196, 0, 0);
+  box-shadow: 0 0 0 5px rgba(255, 196, 0, 0);
+  transition: background 5s ease-out, box-shadow 5s ease-out;
+}
+
 .notation-popup .notation-ctx-link {
   display: block; margin-top: .4rem; font-size: .78rem;
   opacity: .85; text-decoration: none; border-top: 1px solid rgba(128,128,128,.25);

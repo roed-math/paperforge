@@ -96,3 +96,15 @@ detail-ui shows `label` as the popup heading, uses the FAR delay for
 (`entry.more`). Href targets missing from the numbering database (e.g.
 insertion divisions like `bg-*`) fall back to a tag anchor on the
 single-page build.
+
+### Context-link landing highlight
+
+Following a popup context link ("see definition in context" / "more
+details") deliberately bypasses the browser's `:target` styling (the theme
+paints the whole target block for 10s): detail-ui intercepts the click,
+jumps there, updates the URL with `history.pushState` (which does not
+engage `:target`), and paints ONLY the specific referenced text — the
+defining occurrence of the term inside the target block when one is
+wrapped there, else the target's heading — fading out over five seconds
+(`.pf-landing-hl` / `.pf-landing-fade`). Modified clicks (new tab) and
+cross-page hrefs keep default navigation.

@@ -257,6 +257,42 @@
     pop.addEventListener("mouseenter", function () { clearTimeout(hideTimer); });
     pop.addEventListener("mouseleave", scheduleHide);
 
+    // Following a context link: instead of the theme's whole-block :target
+    // flash, jump there and paint ONLY the specific referenced text — the
+    // defining occurrence of the term when the target block carries one,
+    // else the target's heading — fading out over five seconds. pushState
+    // updates the URL without engaging the browser's :target styling.
+    pop.addEventListener("click", function (e) {
+      var a = e.target.closest ? e.target.closest(".notation-ctx-link") : null;
+      if (!a) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;   // allow new-tab
+      var href = a.getAttribute("href") || "";
+      var i = href.indexOf("#");
+      if (i < 0) return;
+      var page = href.slice(0, i).split("/").pop();
+      if (page && page !== location.pathname.split("/").pop()) return;
+      var frag = href.slice(i + 1);
+      var target = document.getElementById(frag);
+      if (!target) return;
+      e.preventDefault();
+      pop.classList.remove("show");
+      clearMarks();
+      var occ = pop._entry ? defOccurrence(pop._entry, pop._key) : null;
+      var hl = occ || target.querySelector(".heading") || target;
+      (occ || target).scrollIntoView(occ ? {block: "center"}
+                                         : {block: "start"});
+      if (window.history && history.pushState) {
+        history.pushState(null, "", "#" + frag);
+      }
+      hl.classList.remove("pf-landing-fade");
+      hl.classList.add("pf-landing-hl");
+      void hl.offsetWidth;                    // commit the painted state
+      hl.classList.add("pf-landing-fade");
+      setTimeout(function () {
+        hl.classList.remove("pf-landing-hl", "pf-landing-fade");
+      }, 5200);
+    });
+
     function keyOf(el) {
       var m = /\bptxnotn-([A-Za-z0-9]+)\b/.exec(el.className);
       return m ? m[1] : null;
@@ -303,6 +339,8 @@
                 '">' + label + ' &#x2197;</a>';
       }
       pop.innerHTML = html;
+      pop._key = k;                 // for the context-link landing highlight
+      pop._entry = entry;
       var r = el.getBoundingClientRect();
       // Place BELOW the symbol so the popup never covers the text being read.
       pop.style.top = (window.scrollY + r.bottom + 6) + "px";
