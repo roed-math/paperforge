@@ -1,0 +1,23 @@
+{
+ "thm-main": [
+  {
+   "decl": "Minimal.main_widget_trivial",
+   "via": "docstring",
+   "file": "Minimal/Basic.lean",
+   "line": 11,
+   "cited": "theorem 1.2",
+   "kind": "theorem",
+   "flagged": true
+  }
+ ],
+ "lem-helper": [
+  {
+   "decl": "Minimal.lem_2_1",
+   "via": "name",
+   "file": "Minimal/Basic.lean",
+   "line": 14,
+   "cited": "lemma 2.1",
+   "kind": "theorem"
+  }
+ ]
+}

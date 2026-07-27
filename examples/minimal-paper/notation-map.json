@@ -1,0 +1,8 @@
+{
+  "wid": {
+    "kind": "macro",
+    "match": "\\wid",
+    "definition": "The widget group <m>\\wid</m> (Definition 1.1): the trivial group with the discrete topology.",
+    "defsite": "def-widget"
+  }
+}

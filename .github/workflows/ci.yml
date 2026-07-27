@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # Unit + bootstrap smoke: no PreTeXt/TeX — config normalization, init,
+  # converter genericity, candidate maps, postprocess idempotency, and the
+  # literal onboarding sequence in a spaces-in-path scratch instance.
+  unit:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.13"]
+        exclude:
+          - os: macos-latest
+            python: "3.11"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python3 -m pip install -e . -e validators/ pytest
+      - run: python3 -m pytest tests/ -q
+
+  # Full quickstart including `paperforge build web` on the public fixture:
+  # installs the PreTeXt CLI (its core resources materialize on demand) and
+  # asserts the built page, badges, bundle, provenance, and the validators'
+  # expected findings.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: sudo apt-get update && sudo apt-get install -y libxml2-utils xsltproc poppler-utils
+      - run: python3 -m pip install -e . -e validators/ pytest pretext
+      - run: python3 -m pytest tests/test_smoke.py -q

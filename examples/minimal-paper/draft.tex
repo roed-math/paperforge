@@ -1,0 +1,76 @@
+% Minimal fixture draft for the paperforge smoke tests: two sections, the
+% theorem-like zoo, labeled and unlabeled equations, one citation, a
+% notation macro defined and used later. Small enough that any failure is
+% easy to inspect (review §5-P1).
+\documentclass{amsart}
+\usepackage{amsmath,amssymb}
+\usepackage[colorlinks]{hyperref}
+\usepackage[capitalize]{cleveref}
+
+% the one numbering profile the simulator implements: theorem-likes share a
+% section-reset counter; equations are numbered globally
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\wid}{W}
+\newcommand{\Zint}{\mathbf{Z}}
+
+\title{A Minimal Fixture Paper}
+\author{Alex Author}
+
+\begin{document}
+
+\begin{abstract}
+  A tiny paper exercising the paperforge onboarding path: numbering,
+  declaration-map candidates, notation, and one citation.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}\label{sec:intro}
+
+We study the widget group $\wid$ over $\Zint$, following \cite{Knuth}.
+
+\begin{definition}\label{def:widget}
+  The \emph{widget group} $\wid$ is the trivial group, regarded with the
+  discrete topology.
+\end{definition}
+
+\begin{theorem}\label{thm:main}
+  Every widget is trivial; that is,
+  \begin{equation}\label{eq:main}
+    \wid = 1.
+  \end{equation}
+\end{theorem}
+
+\begin{proof}
+  Immediate from \cref{def:widget}, since
+  \[
+    \wid \subseteq 1 .
+  \]
+\end{proof}
+
+\section{Details}\label{sec:details}
+
+This section proves the supporting lemma used by \cref{thm:main}.
+
+\begin{lemma}\label{lem:helper}
+  The widget group $\wid$ has exactly one element.
+\end{lemma}
+
+\begin{proof}
+  Both inclusions of \cref{eq:main} hold by definition.
+\end{proof}
+
+\begin{remark}\label{rem:note}
+  Nothing in this paper depends on the choice of $\Zint$.
+\end{remark}
+
+\begin{thebibliography}{9}
+\bibitem{Knuth} D.~E. Knuth, \emph{The Art of Computer Programming},
+  Addison--Wesley, 1968.
+\end{thebibliography}
+
+\end{document}

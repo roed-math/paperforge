@@ -1,0 +1,48 @@
+{
+ "snapshot": "current",
+ "source": "/private/tmp/claude-501/-Users-roed-claude-lmfdb/27bd4a25-d620-4923-9d99-1e634df9646c/scratchpad/pf smoke/minimal paper/inputs/draft/main.tex",
+ "items": {
+  "sec-intro": {
+   "kind": "section",
+   "label": "sec:intro",
+   "number": "1",
+   "section": "1"
+  },
+  "def-widget": {
+   "kind": "definition",
+   "label": "def:widget",
+   "number": "1.1",
+   "section": "1"
+  },
+  "thm-main": {
+   "kind": "theorem",
+   "label": "thm:main",
+   "number": "1.2",
+   "section": "1"
+  },
+  "eq-main": {
+   "kind": "equation",
+   "label": "eq:main",
+   "number": "(1)",
+   "section": "1"
+  },
+  "sec-details": {
+   "kind": "section",
+   "label": "sec:details",
+   "number": "2",
+   "section": "2"
+  },
+  "lem-helper": {
+   "kind": "lemma",
+   "label": "lem:helper",
+   "number": "2.1",
+   "section": "2"
+  },
+  "rem-note": {
+   "kind": "remark",
+   "label": "rem:note",
+   "number": "2.2",
+   "section": "2"
+  }
+ }
+}
