@@ -132,6 +132,18 @@ dir = "web-assets/site"        # hand-authored site tree (rsynced whole)
 # clusters = ["bg-topic-one", "bg-topic-two"]
 # js_global_prefix = "PF_BG"
 
+# Statement knowls: whole elements (theorem articles, notation paragraphs)
+# stitched in order, so the homepage can show a main theorem inline with the
+# paragraphs defining its notation.  `expect` parallels `ids`: each substring
+# must appear in its element's text, so a PreTeXt renumber that repoints an
+# auto-numbered id fails the build instead of shipping the wrong paragraph.
+# [[site.bg_knowls.statements]]
+# key = "thm-main"
+# title = "Theorem 1.2 (Presentation theorem)"
+# href = "paper/paper.html#thm-main"
+# ids = ["sec-intro-2-2", "thm-main"]
+# expect = ["notation", "Presentation theorem"]
+
 # Site favicon (sitegen/gen_favicon.py): glyph outlines from MathJax's New
 # Computer Modern font data on a rounded tile; sub is optional. Needs the
 # npm font package under vendor/ and rsvg-convert for the rasters.
