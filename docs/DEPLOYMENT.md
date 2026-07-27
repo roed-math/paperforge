@@ -131,12 +131,41 @@ script can open a PR instead of pushing; revisit then.
 
 Scripts (templates here; stamped per instance):
 
-- `scripts/build-site.sh` — assemble `output/site/` from the landing page
-  (`web-assets/site/index.html`), the PreTeXt web build (`/paper/`), the
-  arXiv PDF (`/paper.pdf`), and the blueprint render (`/blueprint/`).
-- `scripts/deploy.sh [--dry-run]` — rsync the tree into a shallow clone of
-  the site repo, commit with source SHAs, push. One-time GitHub setup:
-  create the public repo; Settings → Pages → deploy from `main`, root.
+- `scripts/build-site.sh` — assemble `output/site/`: the hand-authored site
+  tree (`web-assets/site/`, rsynced whole), the PreTeXt web build
+  (`/paper/`), the arXiv PDF (`/paper.pdf`), every Verso blueprint render
+  (`/blueprint*/`), and the doc-gen4 subsets (`/lean/`). Every rsync
+  excludes macOS AppleDouble sidecars (`._*`) and editor droppings. Two
+  sitegen steps run first and two after: `gen_status.py` (below) and
+  `gen_bg_knowls.py` (homepage background knowls) before assembly; the
+  VersoBlueprint DOT arrow-size bump and `apply_favicon.py` (favicon links
+  stamped into every generated page, depth-correct — GitHub Pages project
+  subpaths defeat the implicit `/favicon.ico` lookup) after.
+- `scripts/deploy.sh [--dry-run|--test]` — rsync the tree into a shallow
+  clone of the site repo, commit with source SHAs (the paper repo plus
+  every formalization checkout), push. `--test` targets the configured
+  test-site repo with a **per-target clone**, so a test deploy can never
+  push to production. One-time GitHub setup: create the public repo;
+  Settings → Pages → deploy from `main`, root.
+- `sitegen/watch_site.py` — local preview overlay: mirrors
+  `web-assets/site/` edits into `output/site/` within ~1s (no full
+  reassembly; deletions and generated trees still need build-site).
+
+**Version footers + drift gate.** A site `status.json` is the single
+machine-readable source of version identifiers (formalization pins,
+toolchains, mathlib pins, PDF checksum, hand-edited counts).
+`sitegen/gen_status.py` refreshes its `*_auto` fields from the live
+artifacts, verifies hand-edited fields against the artifacts they duplicate
+(declared in paper.toml `[site.status.checks]`), and rewrites every
+`<!-- versions:begin/end -->` marker block under the site tree; `--check`
+is the drift gate (run by the `artifact_drift` validator and build-site).
+
+**Records pipelines (optional).** The development-record machinery —
+per-session token ledger, sanitized session corpora with deterministic
+archives, and the dashboard apply/check steps — lives in paperforge
+`records/` as three config-gated pipelines; an instance opts in by giving
+its records config the corresponding blocks (see gq2-paper's
+`records-pipeline/config.json` and README for the worked example).
 
 Promote to a GitHub Action once the pieces settle. The PreTeXt publication
 file and asset URLs must respect the project-page base path.

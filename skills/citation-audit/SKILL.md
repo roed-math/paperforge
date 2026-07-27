@@ -34,6 +34,23 @@ under draft updates (same pattern as notation/disambiguation.json).
 content insertion, or (new work) a literature-connections addition, or a
 directive when placement/wording needs the author. Never silently edit.
 
+## Locator pins
+
+A citation that supports a specific claim carries a **locator** — the
+theorem/section/page inside the work ("[JS, Theorem 3.4]", "[NSW,
+(7.2.6)]"), not a bare "[JS]". The gq2 release-eve pass (2026-07-27)
+audited all 325 citation occurrences this way. Rules:
+
+- **Verify against the source PDF before editing.** A pin is added or
+  changed only after the cited statement is located in the actual source
+  (the PDFs under `references/`); page offsets of scans are noted. A pin
+  that cannot be verified becomes a directive for the author, not a guess.
+- Prefer the source's own numbering (the theorem heading in the author
+  PDF), and pin translations/reprints to the edition the bibliography cites.
+- Record the audit in `references/PROVENANCE.md`: which pins were verified,
+  against which file, and any source mismatches found (a wrong-paper
+  citation is a bibliography fix, not just a pin fix).
+
 ## Calibration
 
 The bar is "what a careful referee flags", not "cite everything": a paper on

@@ -43,6 +43,12 @@ gq2-claude 02155b3→91e1918 bump (56 commits, ±40k lines, module splits).
    otherwise.
 8. **Rebuild + gate**: `build-web.sh` then the full validator run.
    `lean_links` is the net — every badge must resolve in the new tree.
+   Two drift gates now ride along and FAIL the run until regenerated:
+   the trust-base table (`ingest/trust_table.py` — an axiom added or
+   discharged needs a matching row in the trust annotations before the
+   table regenerates) and the site version footers
+   (`sitegen/gen_status.py` — the new submodule pin restamps status.json
+   and every stamped page; commit those with the bump).
 9. **Rebuild the API docs.** GOTCHA: doc-gen4's facet traces ride along
    with a cloned `.lake` and lake will *replay* the docs step, reporting
    success while writing nothing — module pages keep the OLD tree's layout

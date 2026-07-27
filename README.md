@@ -60,16 +60,24 @@ pretext build web && pretext build print  # HTML + arXiv LaTeX
 
 ## Status
 
-All seven validators are implemented and running on the first instance
+All eight validators are implemented and running on the first instance
 (gq2-paper): `lean_links`, `section_summaries`, `directives`,
 `numbering_drift`, `notation_order`, `plagiarism`, `references` (incl. axiom
-coverage with citation-preserving discharge). The ingest toolchain
-(`ingest/`) covers conversion (`tex2ptx`), Lean crosswalks (`lean_ledger`,
-`lean_declmap`, `lean_axioms`, `lean_citable`), notation (`notation_far`,
-`notation_registry`), corpus fetching (`fetch_arxiv_corpus`), and novelty
-evidence (`novelty_evidence`). Docs: ARCHITECTURE, DIRECTIVES, PLAGIARISM,
-HTML-FEATURES, NOTATION, REFERENCES, NOVELTY, REVIEW. Author review UI:
-`review/review_server.py` (see docs/REVIEW.md).
+coverage with citation-preserving discharge), and `artifact_drift` (the
+trust-table and version-footer generators' --check gates). The ingest
+toolchain (`ingest/`) covers conversion (`tex2ptx`), Lean crosswalks
+(`lean_ledger`, `lean_declmap`, `lean_axioms`, `lean_citable`), notation
+(`notation_far`, `notation_registry`), the trust-base table
+(`trust_table`), corpus fetching (`fetch_arxiv_corpus`), and novelty
+evidence (`novelty_evidence`). Site assembly lives in `sitegen/` (version
+footers + drift gate, homepage background knowls, favicon generation and
+stamping, a local preview watcher), and `records/` holds three optional
+config-gated pipelines for the development record (per-session token
+ledger, sanitized session corpora with deterministic archives, dashboard
+apply + consistency checks). Docs: ARCHITECTURE, DIRECTIVES, PLAGIARISM,
+HTML-FEATURES, NOTATION, REFERENCES, NOVELTY, REVIEW, DEPLOYMENT, EDITOR,
+AI-POLICIES. Author review UI: `review/review_server.py` (see
+docs/REVIEW.md).
 
 Known not-yet-a-tool: the one-off matcher that recovered statement numbering
 from a PDF-only old snapshot (gq2's `crosswalk/matched-v428pdf.json`) was

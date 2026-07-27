@@ -99,3 +99,42 @@ labels are MathJax errors). `\notn` wrappers survive, so notation hovers
 work inside the panel; `.eqrange-knowl` is in mathjax_macros.py's
 lazyAlwaysTypeset list. The panel's "view in context" uses the landingGo
 highlight (no :target flash).
+
+## Dark mode: key on the theme's class, not the media query
+
+The PreTeXt modern theme drives dark entirely via a `.dark-mode` class on
+`:root` (readability-options.js sets it from `prefers-color-scheme` AND the
+user's manual toggle; theme.css has no media queries). Every paperforge
+style therefore keys on `:root.dark-mode` — a bare
+`@media (prefers-color-scheme: dark)` block disagrees with the manual
+toggle. paper-style.css holds the palette as CSS variables with a
+`:root.dark-mode` override block (values a step off the theme's dark body
+#23241f); detail-ui.css carries explicit `.dark-mode` counterparts for its
+literal values.
+
+## Accessibility of injected knowls
+
+The click-to-open panels detail-ui.js injects (Lean declaration knowls,
+section-summary knowls) carry ARIA state: the toggle link tracks
+`aria-expanded`, and each panel is a `role="region"` with an `aria-label`
+naming its content ("Lean declaration GQ2.foo"; the division's label and
+title). New injected-panel features should follow the same pattern.
+
+## Homepage links and the ToC default
+
+`addHomeLinks()` injects "← Project homepage" into the masthead and a
+"Return to the project homepage." line after the content footer — the paper
+is the one subpage PreTeXt generates, so the links cannot be authored. And
+the table of contents is **visible by default on wide screens** (owner
+request 2026-07-27): PreTeXt bakes the sidebar closed, build-web strips the
+`hidden` class, and a `min-width: 1000px` rule in paper-style.css shows it;
+the theme's toggle still closes it by re-adding `.hidden`.
+
+## Badges beyond theorem blocks (trust-base tables)
+
+`<lean>` badges also render inside definition lists — the intro trust-base
+table (ingest/trust_table.py) lists each axiom interface with a badge on
+its Lean name, so `.ptx-content dl .lean-link` shares the pill styling and
+the ⚙ prefix. Any future structured-list surface that names declarations
+can reuse the same pattern: the badge selector, not the block type, is the
+contract.

@@ -82,6 +82,26 @@ pattern as notation disambiguation: committed, reviewable, incremental under
 draft updates. `needs-citation` decisions become directives/insertions, not
 silent edits.
 
+## Locator pins (the release-bar convention)
+
+A citation supporting a specific claim carries a **locator** into the work
+— "[JS, Theorem 3.4]", "[NSW, (7.2.6)]", "[Diekert, Theorem p. 152]" — not
+a bare "[JS]". The convention, established by gq2's release-eve pass
+(2026-07-27, all 325 citation occurrences audited):
+
+- pins are added or corrected only after the cited statement is **located
+  in the source PDF** under `references/` (scan page offsets noted);
+  unverifiable pins become directives for the author;
+- the source's own numbering wins (the theorem heading in the author's
+  PDF), pinned to the edition the bibliography cites;
+- the audit is recorded in `references/PROVENANCE.md` — including source
+  mismatches it uncovers (gq2's audit found a wrong-paper citation: the
+  1972 Zel'venskiĭ entry replaced by the 1978/79 paper actually carrying
+  the cited theorem).
+
+The `citation-audit` skill carries the working rules; PROVENANCE.md is the
+durable trail.
+
 ## Why the formalization makes this strong
 
 A paper ordinarily has no machine-readable list of what it assumes. Here the

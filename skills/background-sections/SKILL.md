@@ -82,6 +82,15 @@ terminology marks about it, and give the block a stable `xml:id`
 - Background prose is generated content: style-corpus matched,
   plagiarism-checked, author-reviewed like everything else.
 
+## Homepage knowls (site coupling)
+
+Clusters the project homepage links can open inline: list their
+`bg-<topic>` ids in paper.toml `[site.bg_knowls].clusters`, and
+`sitegen/gen_bg_knowls.py` (a build-site step) extracts each cluster's
+first paragraph from the built paper into `<site>/bg-knowls.js` — title,
+root-relative links, and the paper's KaTeX macros included. Keep the list
+in sync with the homepage's `.bgknowl` anchors when adding a cluster.
+
 ## Contract
 
 - **Reads:** `directives/marks.json` (`mode: "background"`, status open);
