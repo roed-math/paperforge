@@ -771,22 +771,48 @@ def convert_list(env: str, body: str, ctx: Ctx) -> None:
     ctx.emit(f"</{tag}>")
 
 
+def tabular_col_widths(colspec: str) -> list[int]:
+    """Percent widths from a column spec whose every column is a
+    p{<frac>\\textwidth} (or \\linewidth/\\columnwidth) paragraph column.
+    Returns [] when any column is of another type: emitting a partial
+    <col> list would misalign the columns, and non-wrapping specs carry
+    no width information to preserve."""
+    spec = re.sub(r">\{[^{}]*\}|@\{[^{}]*\}|\|", "", colspec)
+    cols = re.findall(
+        r"p\{\s*([0-9.]+)\s*\\(?:text|line|column)width\s*\}|([lcr])", spec)
+    if not cols or any(letter for _, letter in cols):
+        return []
+    return [round(float(frac) * 100) for frac, _ in cols]
+
+
 def convert_tabular(env: str, body: str, ctx: Ctx) -> None:
     ctx.emit("<!-- @forge: table auto-converted; verify formatting -->")
     body = re.sub(r"\\(toprule|midrule|bottomrule|hline|endhead|endfoot|"
                   r"endfirsthead|endlastfoot|centering)\b", "", body)
     body = body.strip()
+    widths: list[int] = []
     if body.startswith("{"):  # column spec (may contain nested braces)
-        body = body[match_brace(body, 0) + 1:]
+        end = match_brace(body, 0)
+        widths = tabular_col_widths(body[1:end])
+        body = body[end + 1:]
     ctx.emit("<tabular>")
     ctx.indent += 1
+    for w in widths:
+        # Wrapping columns: without these, PreTeXt's LaTeX emits plain l
+        # columns and wide cells run past the page margin.  The LaTeX
+        # conversion applies a col's width only to cells containing <p>,
+        # so the cell emitter below wraps accordingly.
+        ctx.emit(f'<col width="{w}%"/>')
     for row in split_rows(body):
         if not row.strip():
             continue
         ctx.emit("<row>")
         ctx.indent += 1
         for cell in row.split("&"):
-            ctx.emit("<cell>" + convert_inline(cell.strip(), ctx.refs) + "</cell>")
+            content = convert_inline(cell.strip(), ctx.refs)
+            if widths:
+                content = "<p>" + content + "</p>"
+            ctx.emit("<cell>" + content + "</cell>")
         ctx.indent -= 1
         ctx.emit("</row>")
     ctx.indent -= 1
