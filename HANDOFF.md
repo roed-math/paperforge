@@ -1,10 +1,14 @@
 # Handoff — paperforge / gq2-paper
 
-Date: 2026-07-12. Working dir is usually `~/claude/lmfdb` but ALL work is in
-**`~/claude/paperforge`** (the general tool) and **`~/claude/gq2-paper`** (the
-first instance). **Read the project memory `paper-pipeline-pretext.md` first** —
-it carries the deep, chronological design record; this file is the actionable
-orientation layer on top of it.
+Started 2026-07-12; **last refreshed 2026-07-19**. This file spans several work
+sessions — "this session" inside the historical sections refers to the session
+that wrote them (dated headings mark which). Working dir is usually
+`~/claude/lmfdb` but ALL work is in **`~/claude/paperforge`** (the general tool)
+and **`~/claude/gq2-paper`** (the first instance). **Read the project memory
+`paper-pipeline-pretext.md` first** — it carries the deep, chronological design
+record; this file is the actionable orientation layer on top of it. A parallel
+snapshot handoff also lives at
+`~/claude/handoffs/paperforge-gq2-paper-2026-07-19.md`.
 
 ## Orientation (how the pieces fit)
 
@@ -14,7 +18,7 @@ orientation layer on top of it.
   specs, harness-neutral), `templates/` + `pretext-template/` (instance
   scaffold, with `@@PLACEHOLDER@@` params filled by paper-init), `docs/`
   (ARCHITECTURE, NOTATION, REFERENCES, NOVELTY, REVIEW, DEPLOYMENT, HTML-FEATURES,
-  AI-POLICIES, **EDITOR** — the last two new this session).
+  AI-POLICIES, **EDITOR**).
 - **gq2-paper** = the instance: `source/` (generated PreTeXt — NEVER hand-edit),
   `content/insertions/*.ptx` (the survives-reingestion content layer),
   `crosswalk/` (numbering + tag↔Lean maps + **source-map.json**), `notation/`
@@ -24,9 +28,12 @@ orientation layer on top of it.
   `inputs/draft/gq2-paper.tex`.
 - **Live site**: https://roed314.github.io/gq2/ — deployed by
   `gq2-paper/scripts/deploy.sh` (direct push to `roed314/gq2` via the
-  `github-claude` ssh alias, NOT PRs). Currently live at gq2-paper@`489cf51`.
+  `github-claude` ssh alias, NOT PRs). **Deploy currency is uncertain**: the last
+  SHA recorded here was `489cf51`, which predates the GPT end-to-end connection
+  and later content passes. Run `scripts/deploy.sh --dry-run` and eyeball the live
+  site before assuming it's current; redeploy if behind.
 
-## THE RENAME + SECOND FORMALIZATION (this session, structural — know this)
+## THE RENAME + SECOND FORMALIZATION (structural — know this)
 
 `formalizations/gq2-lean` was renamed **`formalizations/gq2-claude`** and joined
 by **`formalizations/gq2-gpt`** (David Turturean's independent GPT formalization,
@@ -34,10 +41,17 @@ module `Q2Presentation`, toolchain v4.28.0 ≠ GQ2's v4.31.0-rc2). Consequences:
 - Every statement can carry badges from BOTH formalizations: **green =
   gq2-claude** (default project), **indigo = gq2-gpt**. Tooltips name the project.
 - `<lean project="...">` selects the docs subset + CSS class `lean-proj-<name>`.
-- GPT badges are currently **inert dashed pills** — no doc-gen4 subset exists for
-  `Q2Presentation` yet (different toolchain needs its own docbuild). The moment
-  `/lean/gq2-gpt/` exists they go live with no other change.
-- The GPT decl map (`crosswalk/lean-decl-map-gpt.json`, 100 tags / 383 decls) is
+- **Both formalizations are now fully connected** (GPT end-to-end connection,
+  gq2-paper `774c4f9`): green badges → `/lean/gq2-claude/`, indigo →
+  `/lean/gq2-gpt/`, both with inline knowls (gq2-claude 111/111 decls; gq2-gpt
+  351/352 — 2 private + 1 known-missing `sec7_shearEquivariantSection`). Two Verso
+  blueprints ship too: `/blueprint/` (Claude, v4.31.0 API) and `/blueprint-gpt/`
+  (GPT, v4.28.0 branch, which lacks `:::proposition` — generator maps
+  `proposition→theorem` via `--kind-map`).
+- The correct GPT repo is **`davidturturean/gq2-lean-turturean`** @ `e868b9e`
+  (it previously — wrongly — pointed at `…-turturean-complete`). Submodule SHAs at
+  refresh: gq2-claude @ `91e1918` (v4.31.0-rc2), gq2-gpt @ `e868b9e` (v4.28.0).
+- The GPT decl map (`crosswalk/lean-decl-map-gpt.json`, 91 tags / 354 decls) is
   mined from ITS citation discipline: backtick labels (`` `thm:main` ``) and
   "manuscript Lemma 2.2" phrases. **Gotcha**: the GPT repo *vendors copies of the
   Claude files* under `Induction/Roe*.lean` in `namespace GQ2` — excluded via
@@ -63,18 +77,25 @@ scripts/build-web.sh                        # LaTeX draft -> source/ -> output/w
 PYTHONPATH=~/claude/paperforge/validators python3 -m paperforge_validators.run_all
 pretext build arxiv && (cd output/arxiv && \
   PATH=/Library/TeX/texbin:$PATH latexmk -pdf -interaction=nonstopmode main.tex)
-scripts/build-leandocs.sh                   # doc-gen4 subset -> /lean/gq2-claude/
-scripts/build-site.sh && scripts/deploy.sh  # assemble output/site + publish
+scripts/build-leandocs.sh                   # doc-gen4 subsets -> /lean/gq2-claude/ + /lean/gq2-gpt/
+scripts/build-site.sh && scripts/deploy.sh  # assemble output/site (+ both blueprints) + publish
 ```
 
-**Gate baseline: 0 errors, 9 warnings** (all inherited-from-draft or the
+**Gate baseline: 0 errors, ~12 warnings** (all inherited-from-draft or the
 scanned-Milne-PDF caveat — see the validator tail; none are actionable).
 
 **Review server**: `.claude/launch.json` config `gq2-review` (port 8773) is
 already pinned to `~/miniforge3/bin/python3`. Start it with the
 `mcp__Claude_Browser__preview_start {name:"gq2-review"}` tool. It injects the
-review layer at serve time (paper-tags/margin/marks/**edit** JS) and now sends
-`no-cache` on js/css/html.
+review layer at serve time (paper-tags/margin/marks/**edit** JS) and sends
+`no-cache` on js/css/html. **Run exactly ONE server per instance root**: two
+servers writing `directives/marks.json` concurrently truncated it mid-write on
+2026-07-16 and 500'd every adapter-loading endpoint. Writes now go through
+`atomic_dump` (tmp + `os.replace`) under a module `_WRITE_LOCK` held across the
+read-modify-write in the POST handlers, and `/api/artifacts|items|margin` +
+`progress_snapshot` degrade per-adapter instead of dying — but a second server is
+still a second writer, so don't start one while another is up
+(`lsof -ti tcp:PORT | xargs kill` clears a stray one).
 
 **VERIFY-IN-BROWSER GOTCHAS** (cost me real time this session, all confirmed):
 - Always verify UI in the browser, never statically — a red `\notn` bug once
@@ -92,21 +113,42 @@ review layer at serve time (paper-tags/margin/marks/**edit** JS) and now sends
   output/web/detail-ui.js`) AND hard-reload with a `?bust=` query — the pane
   caches aggressively.
 
-## Deployed state + UNCOMMITTED working tree (don't clobber)
+## Current state — unpushed + uncommitted (don't clobber)
 
-- **gq2-paper @ `489cf51`** deployed & live. Uncommitted: `directives/marks.json`
-  (cosmetic — Unicode re-encoded to `\uXXXX`; the `Marks` adapter writes with
-  `json.dump` default `ensure_ascii=True`, unlike the rest of the codebase — a
-  **real minor bug worth fixing**: pass `ensure_ascii=False`). And
-  `novelty/claims.json`: **N2-dyadic-obstruction flipped needs-discussion →
-  author-rejected** — this is a *decision artifact* and looks like the author's
-  own call on the running server; **do NOT clobber it. Confirm with Roe** whether
-  to commit it (N2 was a long-standing "needs-discussion" open item).
-- **paperforge @ `19f4705`**. Uncommitted `assets/*` + untracked `assets/archive/`
-  = **Roe's logo redesign in progress** (new paper+anvil mark, old one preserved
-  under `archive/claude-v1/`). Leave it entirely alone — not our work.
+_As of 2026-07-19. Parallel sessions (other Claude windows + the user running GPT)
+commit to these repos too, so always `git status` + `git log --oneline` before you
+commit or push — you WILL see commits you didn't make._
 
-## Major systems built this session (all deployed unless noted)
+- **paperforge @ `dd6fce9`** — **3 commits unpushed**: `fece8e3` (atomic locked
+  artifact writes + fault isolation), `53202f2` (margin coverage for
+  paragraph-anchored marks — parallel session), `dd6fce9` (word-snap + click-dot
+  retract). Working tree clean. Push when the user is ready.
+- **gq2-paper @ `3af539f`** — **2 commits unpushed**: `80bd185` (marks.json base
+  repair — parallel session), `3af539f` (extend 10 mid-word-clipped mark texts).
+  **Uncommitted: `directives/marks.json` — 11 NEW real marks `mk-469..mk-480`
+  (479 total).** These are **the user's own in-flight `background` requests**
+  (all `generator: roed`, `created: 2026-07-18`); the live server is actively
+  writing this file. **Leave uncommitted; do NOT clobber. Commit only when the
+  user says the review pass is done.**
+
+## Session 2026-07-19 — review-server hardening, marks repair, mark UX
+
+- **marks.json corruption + repair.** Two review servers against one instance
+  root + threaded writes + a truncate-then-write `json.dump` left `marks.json`
+  half-written (partial `mk-468`), which 500'd every adapter-loading endpoint.
+  Fixed the write path (see the Review-server note above); reconstructed `mk-468`
+  from the built paper (`80bd185`) and extended 10 mid-word-clipped mark texts to
+  full words (`3af539f`, e.g. "inite intersection property" → "finite …").
+- **Word-snap + cancel-by-dot (`dd6fce9`).** Drag-selections that start/end
+  mid-word snap outward to whole words in `paper-marks.js` before recording (the
+  source of the clipped texts). Mark dots are clickable everywhere now: first
+  click arms (red outline + toast), a second within 2.5s retracts via
+  `/api/mark-delete`; the notation-remove pen keeps its one-click retract of
+  purple notation dots. Both verified live in the browser.
+- **Fault isolation.** A single corrupt artifact now shows an error chip / is
+  skipped rather than taking down the whole dashboard.
+
+## Major systems built (session ending 2026-07-12; all deployed unless noted)
 
 1. **The original 5 issues** (subsubsection headings, section-summary xref
    popups, finest-grain margin anchoring, nested-knowl boundaries, private-decl
@@ -191,22 +233,22 @@ view is the primary surface**, dashboard demotes to a list-shaped drawer.
 
 ## Open work / next actions
 
-- **Confirm the N2 claims.json change with Roe** (see uncommitted state) before
-  committing; likewise decide whether to commit the marks.json re-encoding after
-  fixing the `ensure_ascii` bug.
+- **Push the unpushed commits** in both repos (see Current state) once the user is
+  ready; **confirm deploy currency and redeploy** if the live site is behind HEAD.
+- **Background-sections pass** awaits the user's signal that the review is done +
+  their examples/references — they've been entering `background` marks
+  (`mk-469..480` and earlier). Draft global + section-local background write-ups
+  **only from author-supplied references**.
 - **Editor follow-ups** (from EDITOR.md): Lane-2 briefing refinement;
   **paragraph-grain editing** (prose paragraphs, not just labeled blocks — needs
   stable `p` ids from the converter); **optimistic in-place block swap** instead
   of the current reload-after-rebuild button.
-- **gq2-gpt doc-gen4 subset**: build `Q2Presentation` docs (its own docbuild
-  workspace on v4.28.0) so the indigo badges become live links, then extend
-  `build-leandocs.sh` / `build-site.sh` to ship `/lean/gq2-gpt/`.
-- **Marks adapter `ensure_ascii=False`** (small, clears the churn).
-- **Standing author items** (from memory, still open): v428 tex from Turturean
-  (exact eq crosswalk); N9 novelty discussion; intro-novelty render once review
-  completes; background-topics examples list from Roe; Development-record page
-  (landing shows "coming soon"); GitHub Pages must be enabled by Roe manually
-  (our token 404s on the Pages API).
+- **Standing author items** (from memory, verify still open): v4.28 tex from
+  Turturean (exact eq crosswalk); N9 novelty discussion; a Development-record /
+  provenance page (landing shows "coming soon" — ticket-based timeline showing
+  model Fable-vs-Opus, hiding status-checks; plus a story view of incidents and a
+  statistics view: wall time, lane-days, tokens, Lean compile counts); GitHub
+  Pages must be enabled by the user manually (our token 404s on the Pages API).
 - **MathJax SSR prerender** remains offered as the next perf step if lazy isn't
   enough.
 
