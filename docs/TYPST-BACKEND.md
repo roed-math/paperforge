@@ -120,6 +120,7 @@ exports a correct `<mover>`) in HTML and the built-in `overline` in the PDF.
 | Typst emits `id` only for elements something references, but paperforge needs a stable id on **every** statement (deep links, margin review, click-to-mark) | set `id` from the label in the statement show rule — verified not to collide with Typst's own | `lib/theorems.typ` |
 | Equation references render "Equation 4", not the `\eqref` convention | show rule on `ref` to `math.equation` → `(4)`, so ranges read `(4)–(6)` | `lib/paperforge.typ` |
 | No AMS citation style bundled | default numeric matches what PreTeXt already produces; a real switch ships an AMS CSL file | instance |
+| `.bib` fields pass most LaTeX math through verbatim — `{$\mathfrak{p}$}` renders as the literal string `\mathfrak{p}` | use the Unicode character (`𝔭`) in the `.bib` | instance |
 | Multi-page output (`--format bundle`) is experimental and wants a `document` wrapper not present in 0.15's `html` module | not needed — the gq2 HTML is deliberately a single page (PreTeXt chunking level 0) | — |
 
 ## Traps worth knowing
