@@ -175,6 +175,44 @@ It builds to HTML plus three PDFs with **zero warnings**, and:
 - the three tiered passages are absent from the `detail=1` PDF (3628 chars) and
   present in `detail=2` (4862 chars), while the HTML carries all of them.
 
+## How much of the paper this actually covers
+
+Small, and deliberately so — the spike is a **rendering test**, not a
+conversion. It took the passage with the paper's hardest notation to find out
+whether Typst could express the mathematics at all.
+
+| | gq2 draft | converted |
+|---|---|---|
+| lines | 6178 | 113 |
+| statements | 105 | 2 |
+| proofs | 86 | **0** |
+| sections | 13 + appendices | part of §1 |
+
+To size the rest without converting it, the draft was surveyed for the
+constructs a converter would meet:
+
+- **Nothing to fear graphically.** Zero `tikz`, `xymatrix`, `CD` and zero
+  `includegraphics` — no commutative diagrams, so `html.frame` is never needed.
+- **Exports correctly** (spot-checked directly): `align` (as
+  `<mtable class="multiline-equation aligned">`), `cases`, matrices, `array`,
+  stretched arrows (`arrow.r^f`).
+- **Two further gaps found**, on top of `overline`:
+
+  1. **`substack` (5 uses).** Typst's `stack()` is *ignored during HTML export* —
+     a sum silently loses its limits. The working idiom is a linebreak inside
+     the subscript, `sum_(i < n \ j > 0)`, which exports as a proper
+     `<munder>` with a stacked `<mtable>`.
+  2. **A multi-line display is ONE numbered equation in Typst**, not one number
+     per line as in LaTeX `align`. Of 25 `align`/`split`/`gather` blocks
+     (7 unnumbered), **11 carry more than one `\label`** and would have to be
+     split into separate displays — e.g. `eq:D0`/`eq:D1`/`eq:D2`,
+     `eq:shapirosquare`/`eq:shapirofree`/`eq:shapiroevens`. Bounded work, but a
+     converter has to know to do it.
+
+The 86 unconverted proofs are the largest untested surface, and the appendices
+(normalized cochains, Fox–Heisenberg rules, the square-commutator presentation)
+carry the densest displays in the paper.
+
 ## What is not built
 
 Listed so nobody mistakes the spike for a backend.
