@@ -55,10 +55,14 @@ def _refs(config: dict) -> list[tuple[str, str, Path]]:
 
 
 def check(config: dict) -> list[Finding]:
-    primary = Path(config["inputs"]["lean_project"])
+    # relative roots are instance-root-relative (running `paperforge-check
+    # /path/to/instance` from anywhere must behave like running it inside);
+    # absolute roots pass through the join unchanged
+    base = instance_root(config)
+    primary = base / config["inputs"]["lean_project"]
     roots: dict[str, Path] = {"": primary}
     for name, rec in config["inputs"].get("formalizations", {}).items():
-        roots[name] = Path(rec["root"])
+        roots[name] = base / rec["root"]
 
     findings: list[Finding] = []
     decls: dict[str, set[str]] = {}
