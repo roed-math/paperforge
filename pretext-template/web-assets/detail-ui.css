@@ -17,10 +17,11 @@
 .detail-ctl .notn-toggle.off { opacity: .45; text-decoration: line-through; }
 @media (max-width: 700px) { .detail-ctl input[type="range"] { width: 4rem; }
   .detail-ctl label { display: none; } }
-@media (prefers-color-scheme: dark) {
-  .detail-ctl button { border-color: rgba(255,255,255,.3); }
-  .detail-ctl button.active { background: #e8e8e8; color: #111; }
-}
+/* dark mode keys on the theme's .dark-mode class (readability-options.js
+   sets it from the system preference and the user toggle) — a bare media
+   query would disagree with the manual toggle */
+:root.dark-mode .detail-ctl button { border-color: rgba(255,255,255,.3); }
+:root.dark-mode .detail-ctl button.active { background: #e8e8e8; color: #111; }
 
 /* reader turned notation links off: no affordance either */
 body.notation-links-off .ptxfar, body.notation-links-off .ptxfar *,
@@ -56,18 +57,21 @@ body.notation-links-off [class*="ptxnotn-"]:hover {
   display: block; font-weight: 600; opacity: .55;
   font-size: .72rem; letter-spacing: .02em; margin-bottom: .2rem;
 }
-@media (prefers-color-scheme: dark) {
-  .notation-popup { background: #22262b; color: #e8e8e8; border-color: rgba(255,255,255,.18); }
+:root.dark-mode .notation-popup {
+  background: #22262b; color: #e8e8e8; border-color: rgba(255,255,255,.18);
 }
 
-/* ============ Formalization badges (<lean> as child of a theorem block) ============ */
-article.theorem-like > .lean-link, section > .lean-link {
+/* ============ Formalization badges (<lean> as child of a theorem block,
+   and inline in the intro trust-base table's dl) ============ */
+article.theorem-like > .lean-link, section > .lean-link,
+.ptx-content dl .lean-link {
   display: inline-block; font-size: .78rem; font-family: ui-monospace, monospace;
   padding: .1rem .5rem; margin: .2rem .3rem .2rem 0;
   border: 1px solid rgba(25,100,60,.4); border-radius: 999px;
   background: rgba(40,160,90,.08); text-decoration: none;
 }
-article.theorem-like > .lean-link::before { content: "⚙ "; }
+article.theorem-like > .lean-link::before,
+.ptx-content dl .lean-link::before { content: "⚙ "; }
 /* Two independent formalizations, distinguished by color:
    gq2-claude (the GQ2 library) keeps the green above;
    gq2-gpt (Q2Presentation) gets indigo. Tooltips name the project. */
@@ -177,3 +181,46 @@ details.hiddenproof:not([open]) .detail-next-btn { display: none; }
   font-size: .95em; }
 .lean-knowl-foot { margin-top: .45em; text-align: right; font-size: .92em; }
 .lean-knowl a { color: #111; }
+
+/* homepage links injected by addHomeLinks(): quiet, matching the site's
+   back-link voice; colors inherit so both schemes work */
+.site-home-link {
+  padding: .45rem 1rem .1rem;
+  font: 650 0.85rem/1.2 system-ui, sans-serif;
+}
+.site-home-link a, .site-home-return a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(40, 160, 90, 0.55);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+.site-home-link a:hover, .site-home-return a:hover {
+  text-decoration-color: currentColor;
+}
+.site-home-return {
+  max-width: 58rem;
+  margin: 1.4rem auto 0;
+  padding: 0.9rem 0 0.4rem;
+  border-top: 1px solid rgba(128, 128, 128, 0.3);
+  font-size: 0.95rem;
+}
+
+/* dark counterparts for every literal light value above (same .dark-mode
+   signal as the theme; panels sit a step off the dark body #23241f) */
+:root.dark-mode .detail-next-btn { background: #33342c; color: #d5d6d0; }
+:root.dark-mode .detail-next-btn:hover { background: #3c3d34; }
+:root.dark-mode .section-knowl, :root.dark-mode .lean-knowl {
+  background: #2c2d27;
+}
+:root.dark-mode .section-knowl a, :root.dark-mode .lean-knowl a {
+  color: #f2f2f2;
+}
+:root.dark-mode article.theorem-like > .lean-link,
+:root.dark-mode section > .lean-link,
+:root.dark-mode .ptx-content dl .lean-link {
+  border-color: rgba(120, 200, 150, 0.45);
+}
+:root.dark-mode .ptx-content .lean-link.lean-proj-gq2-gpt {
+  border-color: rgba(130, 150, 240, 0.55);
+}

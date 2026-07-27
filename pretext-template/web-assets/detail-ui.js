@@ -257,15 +257,9 @@
     });
   }
 
-  // Contents hidden on page load (the theme's toggle still works).
-  function hideTocOnLoad() {
-    var sb = document.getElementById("ptx-sidebar");
-    if (!sb) return;
-    sb.classList.add("hidden");
-    sb.classList.remove("visible");
-    var btn = document.getElementById("ptx-toc-toggle");
-    if (btn) btn.setAttribute("aria-expanded", "false");
-  }
+  // Contents visible by default on wide screens (owner request 2026-07-27,
+  // reversing the earlier hide-on-load): the default-open rule lives in
+  // paper-style.css; the theme's toggle adds .hidden/.visible as before.
 
   // Notation hovers, event-delegated: works regardless of when MathJax
   // typesets a given expression (required for lazy typesetting, where math
@@ -541,15 +535,20 @@
       if (a._leanKnowl) {
         a._leanKnowl.remove();
         a._leanKnowl = null;
+        a.setAttribute("aria-expanded", "false");
         return;
       }
       var panel = document.createElement("div");
       panel.className = "lean-knowl";
+      panel.setAttribute("role", "region");
+      panel.setAttribute("aria-label",
+        "Lean declaration " + a.getAttribute("data-lean-ref"));
       panel.innerHTML = entry.html +
         '<div class="lean-knowl-foot"><a href="' + entry.href +
         '">full documentation ↗</a></div>';
       a.insertAdjacentElement("afterend", panel);
       a._leanKnowl = panel;
+      a.setAttribute("aria-expanded", "true");
       if (window.MathJax && MathJax.typesetPromise) {
         MathJax.typesetPromise([panel]).catch(function () {});
       }
@@ -581,10 +580,14 @@
       if (a._secKnowl && a._secKnowl.isConnected) {
         a._secKnowl.remove();
         a._secKnowl = null;
+        a.setAttribute("aria-expanded", "false");
         return;
       }
       var panel = document.createElement("div");
       panel.className = "section-knowl";
+      panel.setAttribute("role", "region");
+      panel.setAttribute("aria-label", entry.label +
+        (entry.title ? ": " + entry.title : ""));
       panel.innerHTML =
         '<div class="section-knowl-title">' + entry.label +
         (entry.title ? " · " + entry.title : "") + "</div>" +
@@ -594,14 +597,34 @@
       var host = a.closest(".para, li, .knowl__content") || a;
       host.insertAdjacentElement("afterend", panel);
       a._secKnowl = panel;
+      a.setAttribute("aria-expanded", "true");
       if (window.MathJax && MathJax.typesetPromise) {
         MathJax.typesetPromise([panel]).catch(function () {});
       }
     });
   }
 
+  // Links back to the project homepage, top and bottom (the paper is the
+  // one subpage PreTeXt generates, so they are injected rather than authored).
+  function addHomeLinks() {
+    var masthead = document.querySelector('.ptx-masthead');
+    if (masthead && !masthead.querySelector('.site-home-link')) {
+      var top = document.createElement('div');
+      top.className = 'site-home-link';
+      top.innerHTML = '<a href="../">← Project homepage</a>';
+      masthead.insertBefore(top, masthead.firstChild);
+    }
+    var host = document.querySelector('.ptx-content-footer') ||
+               document.querySelector('.ptx-main') || document.body;
+    if (!host.querySelector('.site-home-return')) {
+      var bottom = document.createElement('div');
+      bottom.className = 'site-home-return';
+      bottom.innerHTML = '<a href="../">Return to the project homepage</a>.';
+      host.appendChild(bottom);
+    }
+  }
+
   ready(function () {
-    hideTocOnLoad();
     buildHeaderControls();
     wireProofDetails();
     wireStatementDetails();
@@ -609,5 +632,6 @@
     wireEquationRanges();
     wireLeanKnowls();
     wireSectionSummaries();
+    addHomeLinks();
   });
 })();

@@ -25,15 +25,27 @@
   --paper-field-xref: #f7f7f7; /* injected xref knowl field */
   --paper-layer: #ffffff;      /* nested knowl layer */
   --paper-hairline: #dddddd;
+  --paper-toc-bg: #fafafa;
+  --paper-toc-ink: #222222;
+  --paper-toc-active-bg: #e8e8e8;
+  --paper-toc-active-ink: #111111;
 }
+/* dark mode keys on the theme's .dark-mode class on :root
+   (readability-options.js sets it from the system preference and the user
+   toggle; theme.css has no media queries, so neither may we). The palette
+   sits a step off the theme's dark body (#23241f). */
 :root.dark-mode {
   --activated-content-bg: rgba(255, 255, 255, 0.08);
   --paper-ink: #f2f2f2;
-  --paper-underline: #666666;
-  --paper-field: rgba(255, 255, 255, 0.06);
-  --paper-field-xref: rgba(255, 255, 255, 0.06);
-  --paper-layer: rgba(255, 255, 255, 0.10);
-  --paper-hairline: rgba(255, 255, 255, 0.25);
+  --paper-underline: #66665f;
+  --paper-field: #2c2d27;
+  --paper-field-xref: #2a2b25;
+  --paper-layer: #1d1e19;
+  --paper-hairline: #4a4b44;
+  --paper-toc-bg: #202119;
+  --paper-toc-ink: #cfd0ca;
+  --paper-toc-active-bg: #33342c;
+  --paper-toc-active-ink: #f2f2f2;
 }
 
 /* the theme flashes the :target element for orientation after a fragment
@@ -41,22 +53,18 @@
    affordance, neutral and brief */
 :target { animation-duration: 1.5s; }
 
-/* light TOC sidebar: a paper's margin, not a book's chrome (light mode
-   only — the theme's dark palette handles dark mode) */
-:root:not(.dark-mode) .ptx-sidebar .ptx-toc,
-:root:not(.dark-mode) .ptx-toc {
-  background: #fafafa;
+/* light TOC sidebar: a paper's margin, not a book's chrome (the dark
+   counterpart values live on the variables above) */
+.ptx-sidebar .ptx-toc, .ptx-toc {
+  background: var(--paper-toc-bg);
 }
-:root:not(.dark-mode) .ptx-toc .toc-item,
-:root:not(.dark-mode) .ptx-toc .toc-title-box a,
-:root:not(.dark-mode) .ptx-toc a {
+.ptx-toc .toc-item, .ptx-toc .toc-title-box a, .ptx-toc a {
   background: transparent;
-  color: #222222;
+  color: var(--paper-toc-ink);
 }
-:root:not(.dark-mode) .ptx-toc .toc-item.active,
-:root:not(.dark-mode) .ptx-toc .toc-current a {
-  background: #e8e8e8;
-  color: #111111;
+.ptx-toc .toc-item.active, .ptx-toc .toc-current a {
+  background: var(--paper-toc-active-bg);
+  color: var(--paper-toc-active-ink);
 }
 
 /* one-page build: prev/up/next render as permanently-disabled placeholders
@@ -73,6 +81,10 @@
 /* -- 6 cont.: prose in Computer Modern -- */
 .ptx-content, .ptx-content .para, .ptx-page, .ptx-masthead .title-container {
   font-family: "Computer Modern Serif", "Latin Modern Roman", Georgia, serif;
+}
+.ptx-content .frontmatter .author-status-note {
+  margin-top: 0.2rem;
+  font-size: 0.92em;
 }
 .ptx-content .heading, .ptx-content h1, .ptx-content h2, .ptx-content h3,
 .ptx-content h4, .ptx-content h5 {
@@ -159,4 +171,10 @@
   border: none;
   box-shadow: none;
   border-radius: 4px;
+}
+
+/* ToC visible by default on wide screens (owner request 2026-07-27). The
+   theme's toggle still works: closing adds .hidden, which wins here. */
+@media screen and (min-width: 1000px) {
+  .ptx-sidebar:not(.hidden) { display: block; }
 }
