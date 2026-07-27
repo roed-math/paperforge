@@ -1,0 +1,7 @@
+[package]
+name = "paperforge"
+version = "0.1.0"
+entrypoint = "lib/paperforge.typ"
+authors = ["paperforge"]
+license = "MIT"
+description = "Detail-tiered mathematical papers: one Typst source, an interactive HTML page and a PDF per tier."
