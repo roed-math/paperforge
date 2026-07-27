@@ -18,11 +18,16 @@ formalization** into two synchronized, verifiable outputs:
    optionally wrapped in a whole project site with API docs, Verso
    blueprints, and a public development record.
 
-The **source of truth is PreTeXt** (XML), authored and maintained by an
-agent — writing XML by hand is tedious for a human but natural for an LLM,
-and math stays LaTeX inside `<m>`. The arXiv LaTeX is treated as generated
-output. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the
-requirement-by-requirement design.
+**What is canonical:** the editable inputs are the LaTeX draft plus the
+committed sidecars (insertions, author metadata, notation decisions,
+directives, configuration). paperforge deterministically assembles these
+into a canonical PreTeXt intermediate representation — `source/` is
+generated, never hand-edited — from which both outputs build. To change
+existing prose, edit the draft (the paper-view editor splices it for you);
+to add persistent paperforge-only material, use `content/insertions/`.
+Math stays LaTeX inside `<m>`, so the XML authoring cost falls on the
+tooling, not the author. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+for the requirement-by-requirement design.
 
 The exercised instance is the G_Q2 paper:
 **https://roed314.github.io/gq2/** — paper, PDF, two independent
@@ -90,29 +95,40 @@ skill.
 
 ## Quickstart
 
-**[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)** is the real
-walkthrough (host requirements, scaffolding, the loop, what's optional).
-The shape of it:
-
 ```bash
-pip install -e <paperforge>/validators      # once: the paperforge-check gate
+# Tool setup (once)
+git clone https://github.com/roed-math/paperforge
+python3 -m pip install -e paperforge -e paperforge/validators
 
-# in a new empty instance repo, with an agent following skills/paper-init:
-#   scaffold, fill paper.toml, drop in draft + style corpus + reference PDFs
-# then iterate:
-scripts/build-web.sh          # ingest -> census + drift gates -> HTML build
-paperforge-check              # the eight validators
-python3 <paperforge>/review/review_server.py    # the author cockpit
-pretext build arxiv           # journal-style LaTeX when wanted
-scripts/build-site.sh && scripts/deploy.sh      # the project site (optional)
+# Instance setup
+mkdir my-paper && cd my-paper && git init
+paperforge init . --title "My Paper" --slug my-paper \
+    --lean-root ../my-paper-lean        # or --no-lean
+
+# Put the LaTeX draft at inputs/draft/main.tex, then:
+paperforge doctor                 # environment + state, one next command
+paperforge ingest --bootstrap     # numbering + CANDIDATE declaration map
+# review crosswalk/lean-decl-map.candidate.json, then:
+paperforge accept lean-decl-map
+paperforge build web
+paperforge check                  # the eight validators
+paperforge review                 # the author cockpit
 ```
+
+This sequence is exercised end-to-end by CI against the public fixture
+([examples/minimal-paper](examples/minimal-paper)) — including from a
+directory with spaces in its path. The generative passes (summaries,
+bridging, novelty, grammar) remain agent-executed skills on top of this
+deterministic core; **[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)**
+is the milestone-by-milestone walkthrough.
 
 ## Layout
 
 | dir | what |
 |---|---|
+| `paperforge/` | the `paperforge` command: init, doctor, status, ingest/accept, build, check, review, migrate |
 | `ingest/` | LaTeX→PreTeXt converter; crosswalk, notation, axiom-census, trust-table, novelty, corpus tools |
-| `validators/` | the `paperforge_validators` package (pip-installable; `paperforge-check`) |
+| `validators/` | the `paperforge_validators` package (pip-installable; `paperforge-check` = `paperforge check`) |
 | `sitegen/` | project-site assembly: version footers + drift gate, homepage knowls, favicon, preview watcher |
 | `records/` | optional development-record pipelines: token ledger, sanitized corpora, dashboard apply/check |
 | `review/` | the review server + the paper-view editor/margin/marks layers it injects |
@@ -126,6 +142,9 @@ scripts/build-site.sh && scripts/deploy.sh      # the project site (optional)
 | doc | covers |
 |---|---|
 | [GETTING-STARTED](docs/GETTING-STARTED.md) | starting a second instance: requirements, scaffolding, the loop |
+| [CONFIGURATION](docs/CONFIGURATION.md) | every config key: layers, path semantics, defaults, deprecations |
+| [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | first-build states, environment mismatches, drift gates, diagnostics |
+| [DEVELOPMENT](docs/DEVELOPMENT.md) | paired tool/instance development: editable install, provenance, parity discipline |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | the design: requirement→mechanism map, moving-target strategy, agent-swap interface |
 | [DIRECTIVES](docs/DIRECTIVES.md) | the human-in-the-loop control surface (inline markers + sidecar queue) |
 | [NOTATION](docs/NOTATION.md) | the notation map, hovers, disambiguation, order checking |
@@ -141,20 +160,24 @@ scripts/build-site.sh && scripts/deploy.sh      # the project site (optional)
 ## Status and honest limitations
 
 Everything above is implemented and running on the first instance; the
-validators, converter, sitegen and records pipelines were all verified
-byte-for-byte against it when generalized. Known rough edges for a second
-project:
+validators, converter, sitegen and records pipelines — and now the
+`paperforge build web` orchestration — were all verified byte-for-byte
+against it when generalized, and the onboarding path runs in CI against
+the public fixture. Known rough edges for a second project:
 
-- **One exercised instance.** Instance-specific assumptions surely remain;
-  the second paper will find them.
-- **Skills are not installed commands.** They are instruction files an
-  agent follows (Claude Code today); there is no `paperforge run <skill>`
-  driver yet — deliberately deferred until a second harness is real.
-- **The core-XSL import is an absolute path** (`paper.toml [build]`
-  `pretext_core_xsl` + the two LaTeX siblings) — per-machine until the
-  portable import is sorted.
+- **One exercised real instance.** The fixture catches onboarding defects,
+  not real-paper complexity; the second paper will find assumptions.
+- **One numbering profile.** The simulator implements (and names)
+  `amsart-shared-section-theorems-global-equations` and refuses others —
+  verify against your draft's `.aux` before trusting a new convention.
+- **Generative skills are not installed commands.** They are instruction
+  files an agent follows (Claude Code today); there is no
+  `paperforge run <skill>` driver yet — deliberately deferred until a
+  second harness is real.
 - **PreTeXt 2.43.x is what's exercised**; the XSL overrides ride on core
-  internals (and two upstream-bug workarounds) that may shift.
+  internals (and two upstream-bug workarounds) that may shift — the
+  postprocessing stages error rather than silently ship when the emitted
+  patterns change.
 - **The records pipelines' worked example lives in the instance**
   (gq2-paper's `records-pipeline/`), not here.
 

@@ -1,55 +1,43 @@
 ---
 name: paper-init
-description: Scaffold a new paperforge instance — copy the PreTeXt template and config into the current (empty) repo, then help fill in paper.toml.
+description: Bootstrap a new paperforge instance — run the deterministic `paperforge init`, then help the author with the judgment calls (config choices, inputs, first bootstrap review).
 ---
 
 # paper-init
 
-Bootstraps an instance repo from the tool's templates.
+The scaffolding itself is `paperforge init` — deterministic, tested, and
+self-checking. This skill wraps it with the judgment work. Do NOT copy or
+edit scaffold files by hand; if the initializer's output is wrong, fix the
+initializer.
 
 ## Steps
-1. Confirm the cwd is an empty/new repo intended for one paper.
-2. Copy `pretext-template/` → `source/`, `xsl/`, `publication/`, `content/`
-   (the `authors.xml` sidecar scaffold), `web-assets/`, `project.ptx`; copy
-   `templates/paper.toml` → `./paper.toml`; create `style-corpus/`,
-   `references/`, `directives/`, `directives/applied/`, `inputs/draft/`.
-3. Interview the author for `paper.toml` values: title, AI-draft path, Lean
-   project path, `lean_docs_base`, detail `default_level`/`max_level`.
-4. Fill the placeholders from config:
-   - `xsl/custom-html.xsl`: `@@PRETEXT_CORE_XSL@@`, `@@LEAN_DOCS_ROOT@@`,
-     `@@LEAN_DEFAULT_PROJECT@@`;
-   - `xsl/print-latex.xsl` / `xsl/arxiv-latex.xsl`:
-     `@@PRETEXT_CORE_LATEX_XSL@@` / `@@PRETEXT_CORE_LATEX_CLASSIC_XSL@@`
-     (siblings of `pretext_core_xsl` in the installed core);
-   - copy `templates/build-web.sh` + `templates/apply-author-metadata.sh`
-     -> `scripts/` and fill `@@PAPERFORGE_ROOT@@`, `@@AI_DRAFT@@`,
-     `@@LEAN_ROOT@@`, `@@LEAN_PROJECT_NAME@@`, `@@MATHBB_LETTERS@@`;
-     create `notation/`, `content/insertions/`,
-     `references/extra-biblio.xml` skeletons. Author records go in
-     `content/authors.xml` when tex2ptx's extraction is not enough; the
-     build step skips itself while the sidecar declares no records.
-   - (when deploying) copy `templates/build-site.sh` + `templates/deploy.sh`
-     -> `scripts/` and fill `@@PAPERFORGE_ROOT@@`, `@@PDF_PATH@@`,
-     `@@LEAN_PROJECT_NAME@@`, `@@SITE_REPO@@`, `@@TEST_REPO@@` (a test-site
-     repo for `deploy.sh --test`); seed a `web-assets/site/index.html`
-     landing page (see docs/DEPLOYMENT.md). Optional site machinery is
-     config-gated: `[site.favicon]`, `[site.bg_knowls]`, `[site.status]`
-     (+ a site `status.json`), and `[trust_table]` each light up their
-     sitegen/ingest step only when configured, as do the records pipelines
-     (docs/DEPLOYMENT.md, records config blocks).
-5. Print the next commands: drop the AI draft + style corpus + reference PDFs, then
-   run `ingest-draft`.
 
-## Notes
-- Never overwrite existing content without confirmation.
-- The instance keeps a pinned reference to the tool version used.
+1. Confirm the cwd is an empty/new repo intended for one paper, then run
+   `paperforge init . --non-interactive` with the flags the author's
+   answers imply (`--title`, `--slug`, `--draft`, `--lean-root` +
+   `--lean-project-name`, or `--no-lean`; `--mathbb`; `--site` when a
+   project site is wanted). Inspect its report; a WARN about the PreTeXt
+   core means run `paperforge doctor` after installing pretext.
+2. Interview for the judgment-bearing config `init` cannot guess, and edit
+   `paper.toml` accordingly (docs/CONFIGURATION.md): the formalization's
+   `module` and `docs_root`, `[ingest] authors`, any
+   `[[ingest.literal_rewrites]]` for structural draft macros, detail
+   levels, a `badge_cap` for decomposed-proof projects.
+3. Have the author drop the inputs (draft, style corpus, reference PDFs),
+   then run `paperforge doctor` and fix anything it flags.
+4. Run `paperforge ingest --bootstrap` and REVIEW the candidate
+   declaration map WITH the author — the mining is heuristic and
+   acceptance is the author's call (`paperforge accept lean-decl-map`).
+5. First `paperforge build web` + `paperforge check`; the validator
+   findings on a fresh paper are the worklist for the generative skills,
+   not noise. Hand off to `ingest-draft` refinements and the content
+   passes.
 
 ## Contract
 
-- **Reads:** the paperforge checkout (`pretext-template/`, `templates/`); the
-  author interview for `paper.toml` values.
-- **Writes:** the instance scaffold (`source/`, `xsl/`, `publication/`,
-  `paper.toml`, `scripts/build-web.sh`, empty sidecar dirs).
-- **Gate:** `pretext build web` succeeds in the stamped instance.
-- **Provenance:** the scaffolding commit records the paperforge version; no
-  generator stamp (nothing is proposed).
+- **Reads:** the author interview; `paperforge init`/`doctor` output.
+- **Writes:** `paper.toml` judgment edits; nothing the initializer owns.
+- **Gate:** `paperforge doctor` exit 0; the bootstrap review completed
+  with the author.
+- **Provenance:** the scaffolding commit records the paperforge version
+  (build provenance carries the exact commit thereafter).

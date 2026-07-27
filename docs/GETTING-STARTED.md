@@ -1,136 +1,139 @@
 # Getting started: a second paper
 
-paperforge has one fully-exercised instance (the G_Q2 paper). This is the
-honest path to instance number two. The framework's working assumption is
-that **Claude Code (or a comparable agent harness) is the operator**: the
-generative steps are skills — instruction files the agent executes — not
-installed programs. The deterministic layer (converter, validators, build
-scripts) runs fine without any agent.
+The deterministic spine is the `paperforge` command; the generative passes
+(summaries, bridging, novelty, grammar) are agent-executed skills layered
+on top. This guide walks the milestones; every step's failure modes are in
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md), every config key in
+[CONFIGURATION.md](CONFIGURATION.md).
 
-## 0. Host requirements
-
-| need | why | check |
-|---|---|---|
-| Python ≥ 3.11 with `lxml`, `pyyaml` | validators, ingest, sitegen | `python3 -c "import lxml, tomllib"` |
-| PreTeXt CLI (2.43.x exercised) | the builds | `pretext --version` |
-| TeX Live + `latexmk` | the arXiv/print PDFs | `latexmk --version` |
-| `pdftotext` (poppler) | plagiarism + reference pin checks | `pdftotext -v` |
-| `xsltproc` + `xmllint` (libxslt) | author-metadata step | `xsltproc --version` |
-| `node`/`npm` *(optional)* | vendored MathJax for the offline review server; the favicon's font outlines | `npm -v` |
-| `rsvg-convert` *(optional)* | favicon .ico / touch-icon rasters | `rsvg-convert -v` |
-| `pymupdf` *(optional)* | PDF page count in the version footer | `python3 -c "import fitz"` |
-
-**One interpreter rule**: whichever `python3` has `lxml` must be the one on
-`PATH` for every build (a conda/homebrew/system split here has burned real
-time — scripts that spawn subprocesses lead `PATH` with
-`Path(sys.executable).parent` for this reason). Put it first in `PATH` and
-keep it there.
-
-One-time, from the paperforge checkout:
+## 1. Install the tool
 
 ```bash
-pip install -e validators/     # installs the `paperforge-check` gate command
+git clone https://github.com/roed-math/paperforge
+python3 -m pip install -e paperforge -e paperforge/validators
 ```
 
-## 1. Scaffold the instance
+Host requirements (`paperforge doctor` checks all of this for you):
 
-Create an empty git repo for the paper. In it, with the paperforge checkout
-at a known path (`$PF` below), have your agent follow
-`$PF/skills/paper-init/SKILL.md`: it copies `pretext-template/` and
-`templates/` into place, interviews you for `paper.toml` values, and fills
-the `@@PLACEHOLDER@@` params (paths to your AI draft, your Lean project,
-the installed PreTeXt core XSL — currently an absolute path, see
-Limitations in the README).
+| need | why |
+|---|---|
+| Python ≥ 3.11 with `lxml`, `pyyaml` | the tool itself |
+| PreTeXt CLI (2.43.x exercised) | the builds |
+| TeX Live + `latexmk` | the arXiv/print PDFs |
+| `pdftotext` (poppler) *(optional)* | plagiarism + reference pin checks |
+| `xsltproc` + `xmllint` *(optional)* | the author-metadata step |
+| `node`/`npm`, `rsvg-convert`, `pymupdf` *(optional)* | offline MathJax, favicon rasters, PDF page counts |
 
-Then drop in your inputs:
+**One interpreter rule**: the `python3` on `PATH` must be the one with the
+packages, for every session.
 
-- the AI-written LaTeX draft at `[inputs] ai_draft`;
-- your prior papers (LaTeX preferred) under `style-corpus/`
-  (`$PF/ingest/fetch_arxiv_corpus.py` can pull them from arXiv);
+## 2. Create the instance
+
+```bash
+mkdir my-paper && cd my-paper && git init
+paperforge init . --title "My Paper" --slug my-paper \
+    --lean-root ../my-paper-lean          # or --no-lean
+```
+
+Deterministic and self-checking: scaffold, valid empty sidecars,
+`.gitignore`, a minimal `paper.toml` (with its `instance_schema`), and no
+unresolved placeholders — machine-local values (the PreTeXt core XSL) land
+in gitignored `.paperforge.local.toml` + `xsl/core-local/` shims, never in
+committed files. Then put your inputs in place:
+
+- the AI-written LaTeX draft at `inputs/draft/main.tex`;
+- prior papers (LaTeX preferred) under `style-corpus/`
+  (`ingest/fetch_arxiv_corpus.py` can pull them from arXiv);
 - PDFs of the works you cite under `references/`.
 
-## 2. The loop
+## 3. Diagnose
 
 ```bash
-scripts/build-web.sh      # trust table -> ingest -> author metadata ->
-                          # axiom census + drift gate -> far marks ->
-                          # pretext build web -> hover registries
-paperforge-check          # the eight validators; exit 1 on any error
+paperforge doctor
 ```
 
-Generative passes are skills, run through your agent in roughly this order:
-`ingest-draft` (once, and after draft updates), then `bridge-text`,
-`section-summaries`, `intro-novelty` (from the approved claims dossier),
-`background-sections`, `grammar-pass` last. Author control runs through
-**directives** (docs/DIRECTIVES.md) and the **review dashboard**:
+Grouped, actionable: environment, config, the tool checkout in use
+(commit + dirty state), the derived instance state, and the one next
+command. Exit 0 means nothing blocks.
+
+## 4. Bootstrap
 
 ```bash
-python3 $PF/review/review_server.py     # http://127.0.0.1:8765/review
+paperforge ingest --bootstrap
 ```
 
-— one server per instance, ever. The paper view doubles as the editor
-(docs/EDITOR.md): ✎ on every statement, proof, and paragraph.
+First-run ingestion needs no declaration map: it converts the draft,
+writes `crosswalk/numbering-current.json` and the source map, and — when a
+formalization is configured — mines a **candidate** declaration map:
 
-PDFs, when wanted:
+```text
+Bootstrap ingestion completed.
+Created:
+  crosswalk/numbering-current.json
+  crosswalk/lean-decl-map.candidate.json
+
+Review the candidate declaration map(s), then:
+  paperforge accept lean-decl-map
+  paperforge build web
+```
+
+## 5. Review the candidate, accept deliberately
+
+The mining is heuristic (declaration names, docstring citations) — that is
+why builds refuse to use a candidate silently. Each entry carries its
+evidence (`via`, `file`, `line`, `cited`); prune wrong matches, then:
 
 ```bash
-pretext build arxiv && (cd output/arxiv && latexmk -pdf main.tex)
+paperforge accept lean-decl-map        # per --formalization for others
 ```
 
-## 3. What's optional (config-gated)
+## 6. First build + validators
 
-Everything below is off until its config block exists, so a minimal
-instance ignores this table entirely.
+```bash
+paperforge build web
+paperforge check
+```
 
-| paper.toml block | turns on |
-|---|---|
-| `[inputs.formalizations.<name>]` | additional formalization(s): per-project badges, docs subsets, validation |
-| `[trust_table]` | the intro trust-base table + its drift gate |
-| `[validators.section_summaries]` | recorded waivers for deliberately summary-less sections |
-| `[site]` + `web-assets/site/` | the project site (`scripts/build-site.sh`, `scripts/deploy.sh [--test]`) |
-| `[site.status]` + a site `status.json` | stamped version footers + the drift gate |
-| `[site.bg_knowls]` | homepage knowls (background clusters, statement panels) |
-| `[site.favicon]` | favicon generated from the paper's own typeface |
-| records config (separate file, see below) | development-record pipelines: token ledger, sanitized session corpora, dashboard |
+The build lists every stage with a skip *reason* for unconfigured ones
+("not configured" is never conflated with "file missing"), runs the
+portable postprocessing (lazy MathJax, ToC default-open), and writes
+`output/build-provenance.json`. `paperforge check` runs the eight
+validators; on a fresh paper, missing section summaries and early notation
+uses are *real findings* — the worklist for the skills.
 
-The records pipelines read their own JSON config (session include-lists +
-dashboard identity), not paper.toml:
-`python3 $PF/records/run_all.py <records-config.json>`. The worked example
-is gq2-paper's `records-pipeline/` (config + README).
+## 7. The generative passes (agent territory)
 
-## 4. Where things live
+Run through your agent in roughly this order: `ingest-draft` refinements,
+`bridge-text`, `section-summaries`, `intro-novelty` (from the approved
+claims dossier), `background-sections`, `grammar-pass` last. Author
+control runs through **directives** ([DIRECTIVES.md](DIRECTIVES.md)) and:
 
-An instance after a few passes:
+```bash
+paperforge review        # the dashboard + paper-view editor, one server ever
+```
+
+## 8. PDF and the optional site
+
+```bash
+paperforge build arxiv --pdf
+```
+
+Site assembly, deployment, version footers, and the records pipelines are
+config-gated extras — [DEPLOYMENT.md](DEPLOYMENT.md). Each lights up only
+when its `[site]`/`[trust_table]`/records block exists.
+
+## Where things live
 
 ```
-paper.toml            config (the only file the tools read for knobs)
-inputs/draft/         the AI LaTeX draft (byte-preserved; edits splice in)
-source/               GENERATED PreTeXt — never hand-edit; regenerate
+paper.toml            committed config    .paperforge.local.toml  machine-local
+inputs/draft/         the LaTeX draft (canonical, editor-spliced)
+source/               GENERATED PreTeXt — never hand-edit
 content/              survives re-ingestion: insertions/, authors.xml
-crosswalk/            numbering maps, decl maps, axiom census, source map
-notation/             notation-map.json + sense decisions
-references/           PDFs, extra-biblio, trust annotations, PROVENANCE.md
-directives/           the author's queue: directives, marks, edit-undo
-novelty/ followups/   claims dossiers (dashboard-reviewed)
-style-corpus/         your prior papers + ADVICE.md
-web-assets/           hover UI + fonts (+ site/ if you build one)
-scripts/              thin wrappers calling $PF tools
-output/               builds (gitignored)
+crosswalk/            numbering, source map, decl maps, axiom census
+notation/ references/ directives/ novelty/ style-corpus/   sidecars
+output/               builds + provenance (gitignored)
 ```
 
-The cardinal rule twice, because it is the one people break: **`source/`
-is generated**. Content you add by hand goes in `content/insertions/`
-(merged at ingest, survives every re-ingestion); edits to existing prose
-go through the paper-view editor or directives, which splice the draft
-and regenerate.
-
-## 5. When something fails
-
-- `paperforge-check` failing is the system working: each finding names the
-  validator and the fix path. `artifact_drift` findings mean "rerun the
-  named generator and commit" (build-web/build-site do this).
-- A `<lean>` badge erroring in `lean_links` after a formalization update:
-  follow `skills/update-formalization/SKILL.md` — the bump checklist.
-- The build works but hovers/knowls misbehave: docs/HTML-FEATURES.md
-  carries the feature contracts, and the verification gotchas live in the
-  paperforge HANDOFF.
+The cardinal rule: **`source/` is generated.** Prose changes go through
+the draft (paper-view editor or LaTeX); persistent additions through
+`content/insertions/`.
