@@ -30,7 +30,8 @@ LINKS = """<link rel="icon" href="{prefix}favicon.svg" type="image/svg+xml">
 def main() -> None:
     site = Path(sys.argv[1] if len(sys.argv) > 1 else "output/site")
     if not (site / "favicon.svg").exists():
-        sys.exit(f"apply-favicon: no favicon.svg at the root of {site}")
+        print(f"apply-favicon: no favicon.svg at the root of {site}; skipping")
+        return
 
     stamped = skipped = 0
     for page in sorted(site.rglob("*.html")):

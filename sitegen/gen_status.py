@@ -161,6 +161,9 @@ def main() -> int:
     config = load_config(root)
     site = site_dir(root, config)
     status_path = site / "status.json"
+    if not status_path.exists():
+        print("gen-status: no status.json under the site dir; skipping")
+        return 0
 
     data = json.loads(status_path.read_text())
     before = json.dumps(data, indent=2)
