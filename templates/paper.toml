@@ -3,7 +3,7 @@
 
 [paper]
 title = "Title of the paper"
-instance_name = "gq2"          # short slug; used for output filenames
+instance_name = "mypaper"      # short slug; used for output filenames
 
 [inputs]
 # The AI-written LaTeX draft. Also serves as a plagiarism baseline (see below).

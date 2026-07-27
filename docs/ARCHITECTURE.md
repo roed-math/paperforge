@@ -91,12 +91,24 @@ audit. Re-running any skill or validator is idempotent; skills consume their inp
 
 1. **ingest** — `ingest-draft` converts the AI LaTeX into PreTeXt structure.
 2. **generative passes** — `bridge-text`, `section-summaries`, `intro-novelty`,
-   `grammar-pass`, `apply-directives`. Each is independently re-runnable.
-3. **validate** — `python -m paperforge_validators.run_all` (CI gate).
-4. **build** — `pretext build web` and `pretext build print`.
+   `background-sections`, `grammar-pass`, `apply-directives`. Each is
+   independently re-runnable.
+3. **validate** — `paperforge-check` (the pip-installed
+   `paperforge_validators.run_all`; CI gate).
+4. **build** — the instance's `scripts/build-web.sh` (which wraps
+   `pretext build web` in the ingest/census/registry sequence) and
+   `pretext build arxiv`/`print` for LaTeX.
 
 Stages are not a strict pipeline: because inputs move, you re-enter at any stage.
 Validators are the invariant that must hold before a build is shippable.
+
+Beyond the original 13 requirements, later machinery follows the same
+validator-or-skill discipline: the trust-base table and the site's version
+footers are generators with `--check` drift gates (surfaced by the
+`artifact_drift` validator), site assembly lives in `sitegen/`, and the
+development-record pipelines in `records/` are config-gated per instance —
+see [DEPLOYMENT.md](DEPLOYMENT.md) and
+[GETTING-STARTED.md](GETTING-STARTED.md).
 
 ## Swapping the generative agent
 

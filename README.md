@@ -9,81 +9,154 @@
 
 [![built with PaperForge](assets/paperforge-badge.svg)](https://github.com/roed-math/paperforge)
 
-A Claude Code framework for turning an **AI-written math paper** plus a **Lean
-formalization** into two synchronized outputs:
+A framework for turning an **AI-written math paper** plus a **Lean
+formalization** into two synchronized, verifiable outputs:
 
-1. **LaTeX/PDF** for arXiv (generated from a PreTeXt source of truth).
-2. **Structured HTML** with reader-controlled detail levels, notation hovers, and
-   links into the formalization.
+1. **LaTeX/PDF** for arXiv (generated from a PreTeXt source of truth);
+2. **Structured HTML** with reader-controlled detail levels, notation
+   hovers, and per-statement links into the formalization —
+   optionally wrapped in a whole project site with API docs, Verso
+   blueprints, and a public development record.
 
-The **source of truth is PreTeXt** (XML), authored by Claude. Writing XML by hand
-is tedious for a human but natural for an LLM; math stays LaTeX inside `<m>`. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for why, and the requirement-by-
-requirement design.
+The **source of truth is PreTeXt** (XML), authored and maintained by an
+agent — writing XML by hand is tedious for a human but natural for an LLM,
+and math stays LaTeX inside `<m>`. The arXiv LaTeX is treated as generated
+output. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the
+requirement-by-requirement design.
+
+The exercised instance is the G_Q2 paper:
+**https://roed314.github.io/gq2/** — paper, PDF, two independent
+formalizations with per-statement badges, blueprints, API docs, and the
+full AI-development record with token accounting.
+
+## What you get
+
+- **A faithful converter** (`ingest/tex2ptx.py`): deterministic
+  LaTeX→PreTeXt with a numbering simulator (validated against pdflatex's
+  `.aux`), stable `xml:id` identity across renumberings, author metadata,
+  alphabetic bibliography labels, and a byte-span source map that powers
+  in-browser editing of the original draft.
+- **The reading experience**: knowl proofs, a global detail slider with
+  per-proof tiers, notation hovers with definition-site highlighting,
+  section-summary popups, equation-range knowls, dark mode, print/HTML
+  content splits.
+- **Formalization linkage**: `<lean>` badges per statement (multiple
+  independent formalizations, color-coded), inline doc knowls, doc-gen4
+  subsets, Verso blueprints with Lean-derived dependency graphs, and an
+  axiom census whose citations are validated like everything else.
+- **Eight deterministic validators** (`paperforge-check`): Lean refs
+  resolve, summaries present, directives fresh, notation
+  defined-before-use, numbering drift, reference/citation coverage,
+  plagiarism n-grams, artifact drift.
+- **The author cockpit**: a local review dashboard + the paper view as
+  editor — margin marks, decision cards, statement/proof/paragraph
+  editing that splices the LaTeX draft and rebuilds, all autosaved into
+  committed JSON artifacts.
+- **Provenance throughout**: every generated item stamped with its
+  generator, every applied change a discrete commit, and optional
+  development-record pipelines (token ledger, sanitized session corpora,
+  cost dashboard) for publishing how the paper was made.
 
 ## Two repositories
 
-- **This repo (the tool):** reusable skills, validators, PreTeXt scaffolding, and
-  docs. No paper content lives here.
-- **An instance repo (one per paper):** the actual PreTeXt source, the config
-  (`paper.toml`), the style corpus, the reference PDFs, and a pointer to the Lean
-  project. Created by the `paper-init` skill, which copies `pretext-template/` and
-  `templates/` into place.
+- **This repo (the tool):** converter + generators (`ingest/`), validators
+  (`validators/`), site assembly (`sitegen/`), development-record
+  pipelines (`records/`), the review server (`review/`), agent-executed
+  skills (`skills/`), instance scaffolding (`pretext-template/`,
+  `templates/`), and docs. No paper content lives here.
+- **An instance repo (one per paper):** the PreTeXt source, `paper.toml`,
+  the style corpus, reference PDFs, decision artifacts, and pointers to
+  the Lean project(s). Scaffolded by the `paper-init` skill.
 
-The first instance is the G_Q2 paper (Lean project `~/claude/gq2-lean`).
+Lessons flow one way: instance-specific tooling gets generalized back into
+the tool, parameterized by config, and the instance copy is deleted.
 
-## Two kinds of work (the core split)
+## The core split: validators vs skills
 
 Every requirement is handled by exactly one of:
 
-- **Validators** (`validators/`, Python) — *deterministic, objective, CI-gating.*
-  Notation-defined-before-use, reference correctness, `<lean>`-refs-exist,
-  stale-directive detection, plagiarism n-gram overlap, section-summary presence.
-  These give regression safety as the paper and formalization drift.
-- **Skills** (`skills/`, Claude passes) — *generative, subjective, re-runnable.*
-  Draft ingestion, bridging text, section summaries, intro novelty language,
-  grammar, directive application.
+- **Validators** (`validators/`, Python) — *deterministic, objective,
+  CI-gating.* They never write; a failure means a human or a skill must
+  fix something.
+- **Skills** (`skills/`, agent-executed instruction files) — *generative,
+  subjective, re-runnable.* Draft ingestion, bridging text, summaries,
+  novelty exposition, background sections, grammar. Each ends with a
+  **Contract** block (reads/writes/gate/provenance) so any agent that
+  honors it is a valid executor — acceptance is enforced by the
+  validators and author review, never by trusting the generator.
 
-If a check can be made objective, it is a validator. Everything else is a skill.
+If a check can be made objective, it is a validator. Everything else is a
+skill.
 
 ## Quickstart
 
+**[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)** is the real
+walkthrough (host requirements, scaffolding, the loop, what's optional).
+The shape of it:
+
 ```bash
-# In a new empty instance repo:
-/paper-init                      # scaffold from templates, write paper.toml
-# ... point paper.toml at the AI draft + Lean project, drop style corpus + PDFs ...
-/ingest-draft                    # AI LaTeX draft -> PreTeXt source
-/bridge-text /section-summaries /intro-novelty /grammar-pass   # generative passes
-python -m paperforge_validators.run_all   # gate: notation, refs, lean links, ...
-pretext build web && pretext build print  # HTML + arXiv LaTeX
+pip install -e <paperforge>/validators      # once: the paperforge-check gate
+
+# in a new empty instance repo, with an agent following skills/paper-init:
+#   scaffold, fill paper.toml, drop in draft + style corpus + reference PDFs
+# then iterate:
+scripts/build-web.sh          # ingest -> census + drift gates -> HTML build
+paperforge-check              # the eight validators
+python3 <paperforge>/review/review_server.py    # the author cockpit
+pretext build arxiv           # journal-style LaTeX when wanted
+scripts/build-site.sh && scripts/deploy.sh      # the project site (optional)
 ```
 
-## Status
+## Layout
 
-All eight validators are implemented and running on the first instance
-(gq2-paper): `lean_links`, `section_summaries`, `directives`,
-`numbering_drift`, `notation_order`, `plagiarism`, `references` (incl. axiom
-coverage with citation-preserving discharge), and `artifact_drift` (the
-trust-table and version-footer generators' --check gates). The ingest
-toolchain (`ingest/`) covers conversion (`tex2ptx`), Lean crosswalks
-(`lean_ledger`, `lean_declmap`, `lean_axioms`, `lean_citable`), notation
-(`notation_far`, `notation_registry`), the trust-base table
-(`trust_table`), corpus fetching (`fetch_arxiv_corpus`), and novelty
-evidence (`novelty_evidence`). Site assembly lives in `sitegen/` (version
-footers + drift gate, homepage background knowls, favicon generation and
-stamping, a local preview watcher), and `records/` holds three optional
-config-gated pipelines for the development record (per-session token
-ledger, sanitized session corpora with deterministic archives, dashboard
-apply + consistency checks). Docs: ARCHITECTURE, DIRECTIVES, PLAGIARISM,
-HTML-FEATURES, NOTATION, REFERENCES, NOVELTY, REVIEW, DEPLOYMENT, EDITOR,
-AI-POLICIES. Author review UI: `review/review_server.py` (see
-docs/REVIEW.md).
+| dir | what |
+|---|---|
+| `ingest/` | LaTeX→PreTeXt converter; crosswalk, notation, axiom-census, trust-table, novelty, corpus tools |
+| `validators/` | the `paperforge_validators` package (pip-installable; `paperforge-check`) |
+| `sitegen/` | project-site assembly: version footers + drift gate, homepage knowls, favicon, preview watcher |
+| `records/` | optional development-record pipelines: token ledger, sanitized corpora, dashboard apply/check |
+| `review/` | the review server + the paper-view editor/margin/marks layers it injects |
+| `skills/` | agent-executed passes, one SKILL.md each, Contract blocks throughout |
+| `pretext-template/` | instance scaffold: XSL conversions, publication files, web-assets UI layer, authors sidecar |
+| `templates/` | instance scaffold: `paper.toml`, build/deploy scripts, directive examples |
+| `docs/` | see the index below |
 
-Known not-yet-a-tool: the one-off matcher that recovered statement numbering
-from a PDF-only old snapshot (gq2's `crosswalk/matched-v428pdf.json`) was
-ad-hoc session work; when an old snapshot exists as .tex, `tex2ptx
---numbering` replaces it. Skills are SKILL.md specs consumed by Claude in
-session (not yet installed as slash commands).
+## Documentation
+
+| doc | covers |
+|---|---|
+| [GETTING-STARTED](docs/GETTING-STARTED.md) | starting a second instance: requirements, scaffolding, the loop |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) | the design: requirement→mechanism map, moving-target strategy, agent-swap interface |
+| [DIRECTIVES](docs/DIRECTIVES.md) | the human-in-the-loop control surface (inline markers + sidecar queue) |
+| [NOTATION](docs/NOTATION.md) | the notation map, hovers, disambiguation, order checking |
+| [REFERENCES](docs/REFERENCES.md) | citation completeness, axiom coverage, locator pins, bib labels |
+| [PLAGIARISM](docs/PLAGIARISM.md) | the n-gram guard and its provenance labeling |
+| [NOVELTY](docs/NOVELTY.md) | the claims dossier: five novelty classes and their evidence |
+| [HTML-FEATURES](docs/HTML-FEATURES.md) | the interactive layer's feature contracts and gotchas |
+| [REVIEW](docs/REVIEW.md) | the review dashboard and in-chat review |
+| [EDITOR](docs/EDITOR.md) | the paper view as editor: lanes, source map, structural gates |
+| [DEPLOYMENT](docs/DEPLOYMENT.md) | site structure, build/deploy scripts, version footers, records pipelines |
+| [AI-POLICIES](docs/AI-POLICIES.md) | publisher policies on AI-assisted mathematical writing |
+
+## Status and honest limitations
+
+Everything above is implemented and running on the first instance; the
+validators, converter, sitegen and records pipelines were all verified
+byte-for-byte against it when generalized. Known rough edges for a second
+project:
+
+- **One exercised instance.** Instance-specific assumptions surely remain;
+  the second paper will find them.
+- **Skills are not installed commands.** They are instruction files an
+  agent follows (Claude Code today); there is no `paperforge run <skill>`
+  driver yet — deliberately deferred until a second harness is real.
+- **The core-XSL import is an absolute path** (`paper.toml [build]`
+  `pretext_core_xsl` + the two LaTeX siblings) — per-machine until the
+  portable import is sorted.
+- **PreTeXt 2.43.x is what's exercised**; the XSL overrides ride on core
+  internals (and two upstream-bug workarounds) that may shift.
+- **The records pipelines' worked example lives in the instance**
+  (gq2-paper's `records-pipeline/`), not here.
 
 ## AI and mathematical writing
 
