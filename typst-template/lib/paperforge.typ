@@ -126,7 +126,10 @@
   css: ("paper.css",),
   js: ("paper.js",),
   paper-size: "us-letter",
-  font: ("New Computer Modern",),
+  // The Math face is the fallback for math alphanumerics (fraktur, script,
+  // double-struck) that the text face does not cover — a `𝔭` in a bibliography
+  // title otherwise renders as a substitute glyph.
+  font: ("New Computer Modern", "New Computer Modern Math"),
   font-size: 10.5pt,
   body,
 ) = {

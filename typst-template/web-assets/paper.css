@@ -24,7 +24,10 @@
   --pf-notn: #7a6a20;
   --pf-content-width: 46rem;
   --pf-sidebar-width: 17rem;
-  --pf-serif: "New Computer Modern", "Latin Modern Roman", Georgia, serif;
+  /* "New Computer Modern Math" covers the math alphanumerics (fraktur, script,
+   * double-struck) the text face lacks. NB these are SYSTEM fonts here; a
+   * deployed site must vendor webfonts, as the PreTeXt build already does. */
+  --pf-serif: "New Computer Modern", "New Computer Modern Math", "Latin Modern Roman", Georgia, serif;
   --pf-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
