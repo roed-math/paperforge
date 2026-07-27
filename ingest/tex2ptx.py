@@ -1118,12 +1118,18 @@ def parse_document(tex: str):
     return preamble_chunk, units
 
 
+# Literal pre-parse rewrites (--rewrite FROM=TO): structural draft macros
+# expanded before parsing. Macro definitions mentioning a rewrite source are
+# dropped from the emitted macro block (their uses no longer exist).
+LITERAL_REWRITES: list[tuple[str, str]] = []
+
+
 def extract_macros(preamble: str) -> str:
     macros = []
     for m in re.finditer(r"\\newcommand\{\\[a-zA-Z]+\}(\[\d\])?\{", preamble):
         j = match_brace(preamble, m.end() - 1)
         full = preamble[m.start():j + 1]
-        if "\\MarkedDem" in full or "hyperref" in full:
+        if any(src in full for src, _ in LITERAL_REWRITES) or "hyperref" in full:
             continue  # structural macro, rewritten at parse time
         if _MATHBB_RE is not None:
             full = _MATHBB_RE.sub(r"\\mathbb{\2}", full)
@@ -1194,9 +1200,45 @@ def main() -> int:
     ap.add_argument("--mathbb", metavar="LETTERS", default="",
                     help="restyle \\mathbf X -> \\mathbb{X} for these letters "
                          "(e.g. QZFP), in math and in docinfo macros")
+    ap.add_argument("--document-id", default=None,
+                    help="PreTeXt docinfo <document-id> (default: the tex "
+                         "file's stem)")
+    ap.add_argument("--rewrite", action="append", default=[],
+                    dest="rewrites", metavar="FROM=TO",
+                    help="literal pre-parse rewrite of a structural draft "
+                         "macro (repeatable), e.g. "
+                         "'\\MarkedDem=\\cref{prop:markedDem}'. Macro "
+                         "definitions mentioning FROM are dropped from the "
+                         "emitted macro block. Applied rewrites are logged.")
+    ap.add_argument("--numbering-profile",
+                    default="amsart-shared-section-theorems-global-equations",
+                    help="named numbering convention the simulator "
+                         "implements; only the default profile is currently "
+                         "supported (amsart, theorem-like environments "
+                         "sharing one section-reset counter, globally "
+                         "numbered equations, lettered appendices)")
     args = ap.parse_args()
+    if args.numbering_profile != \
+            "amsart-shared-section-theorems-global-equations":
+        print(f"tex2ptx ERROR: unsupported numbering profile "
+              f"{args.numbering_profile!r} — the simulator implements only "
+              f"'amsart-shared-section-theorems-global-equations'; verify "
+              f"your draft against it (or extend the simulator) before "
+              f"trusting the numbering", file=sys.stderr)
+        return 1
+    for spec in args.rewrites:
+        src, sep, dst = spec.partition("=")
+        if not sep or not src:
+            print(f"tex2ptx ERROR: --rewrite needs FROM=TO, got {spec!r}",
+                  file=sys.stderr)
+            return 1
+        LITERAL_REWRITES.append((src, dst))
     if args.notation_map:
-        load_notation_wraps(args.notation_map, args.disambig)
+        if args.notation_map.exists():
+            load_notation_wraps(args.notation_map, args.disambig)
+        else:
+            print(f"tex2ptx: notation map {args.notation_map} not present; "
+                  f"converting without notation wraps")
     if args.mathbb:
         set_mathbb(args.mathbb)
     if args.extra_biblio and args.extra_biblio.exists():
@@ -1209,8 +1251,11 @@ def main() -> int:
         load_insertions(args.insertions)
 
     tex = strip_comments(args.texfile.read_text())
-    # expand the one structural macro before parsing
-    tex = tex.replace(r"\MarkedDem", r"\cref{prop:markedDem}")
+    # expand structural macros before parsing (--rewrite FROM=TO)
+    for src, dst in LITERAL_REWRITES:
+        n = tex.count(src)
+        tex = tex.replace(src, dst)
+        print(f"tex2ptx: rewrite {src} -> {dst} ({n} occurrence(s))")
 
     labels = set(LABEL_RE.findall(tex)) | set()
     refs = RefMap(labels)
@@ -1218,6 +1263,10 @@ def main() -> int:
     lean_map: dict[str, dict] = {}
     for spec in args.lean_maps:
         proj, _, path = spec.rpartition("=")
+        if not Path(path).exists():
+            print(f"tex2ptx: lean map {path} not present; no badges for "
+                  f"project {proj or '(default)'} this build")
+            continue
         lean_map[proj] = json.load(open(path))
     lean_caps: dict[str, int] = {}
     for spec in args.lean_caps:
@@ -1331,7 +1380,8 @@ def main() -> int:
         title = convert_inline(title, refs)
         author = convert_inline(author, refs)
         write_tree(args.out, title, author, macros, abstract_ptx,
-                   out_lines_per_sec, extra_authors=args.authors)
+                   out_lines_per_sec, extra_authors=args.authors,
+                   document_id=args.document_id or args.texfile.stem)
     if args.numbering:
         args.numbering.parent.mkdir(parents=True, exist_ok=True)
         args.numbering.write_text(json.dumps(
@@ -1630,7 +1680,8 @@ def apply_insertions(secs) -> int:
 
 
 def write_tree(outdir: Path, title: str, author: str, macros: str,
-               abstract: str, secs, extra_authors: list[str] = ()) -> None:
+               abstract: str, secs, extra_authors: list[str] = (),
+               document_id: str = "paper") -> None:
     outdir.mkdir(parents=True, exist_ok=True)
     napplied = apply_insertions(secs)
     if INSERTIONS and napplied < sum(len(v) for v in INSERTIONS.values()):
@@ -1683,7 +1734,7 @@ def write_tree(outdir: Path, title: str, author: str, macros: str,
 
     main = f"""{HEADER}<pretext xml:lang="en-US" xmlns:xi="http://www.w3.org/2001/XInclude">
   <docinfo>
-    <document-id>gq2-paper</document-id>
+    <document-id>{document_id}</document-id>
     <macros>
 {macros}
 \\newcommand{{\\notn}}[2]{{\\class{{ptxnotn-#1}}{{#2}}}}
