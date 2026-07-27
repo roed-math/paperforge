@@ -3,12 +3,16 @@
     <!-- directories are relative to the main source PreTeXt file -->
     <source>
         <directories external="../assets" generated="../generated-assets"/>
+        <!-- HTML ships the detail elaborations and the background appendix,
+             but not the PDF-only notation index (component "print"), whose
+             content the web edition carries as notation hover pop-ups. -->
+        <version include="details background"/>
     </source>
 
     <common>
         <!-- paper look: the whole document on one page (no per-section pages) -->
         <chunking level="0"/>
-        <!--<journal name="ams" /> -->
+        <journal name="ams" />
     </common>
 
     <!-- Detail tier, HTML side: render remarks as born-hidden (click-to-expand) knowls -->
