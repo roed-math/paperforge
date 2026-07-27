@@ -123,15 +123,19 @@ def author_metadata(cfg: InstanceConfig) -> str:
     source = cfg.root / "source" / "main.ptx"
     if not authors.is_file() or not xsl.is_file():
         return "skipped (no sidecar)"
+    # count records with lxml (a hard dependency) — the xsltproc/xmllint
+    # binaries are only required once records actually exist
+    from lxml import etree
+    try:
+        records = etree.parse(str(authors)).xpath("/author-metadata/record")
+    except etree.XMLSyntaxError as e:
+        raise RuntimeError(f"content/authors.xml does not parse: {e}")
+    if not records:
+        return "skipped (no records)"
     for binary in ("xsltproc", "xmllint"):
         if not _shutil.which(binary):
             raise RuntimeError(f"{binary} not installed but content/authors.xml "
                                f"declares author records")
-    count = subprocess.run(
-        ["xmllint", "--xpath", "count(/author-metadata/record)", str(authors)],
-        capture_output=True, text=True)
-    if count.returncode != 0 or count.stdout.strip().split(".")[0] in ("", "0"):
-        return "skipped (no records)"
     out = subprocess.run(
         ["xsltproc", "--nonet", str(xsl), str(source)],
         capture_output=True, text=True, check=True).stdout
