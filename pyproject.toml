@@ -1,0 +1,12 @@
+[project]
+name = "paperforge"
+version = "0.1.0"
+description = "Turn an AI-written math paper plus a Lean formalization into synchronized arXiv LaTeX and structured HTML."
+requires-python = ">=3.11"
+dependencies = ["lxml", "pyyaml"]
+
+[project.scripts]
+paperforge = "paperforge.cli:main"
+
+[tool.setuptools]
+packages = ["paperforge", "paperforge.commands", "paperforge.postprocess"]
