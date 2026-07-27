@@ -19,6 +19,7 @@ from . import (
     numbering_drift,
     references,
     plagiarism,
+    artifact_drift,
 )
 
 CHECKS = [
@@ -29,6 +30,7 @@ CHECKS = [
     numbering_drift,
     references,
     plagiarism,
+    artifact_drift,
 ]
 
 

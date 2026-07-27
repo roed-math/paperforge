@@ -28,7 +28,7 @@ KIND = {"theorem": "theorem", "thm": "theorem", "lemma": "lemma", "lem": "lemma"
 DECL = re.compile(
     r"^\s*(?:@\[[^\]]*\]\s*)*"
     r"((?:private\s+|protected\s+|noncomputable\s+|nonrec\s+|partial\s+)*)"
-    r"(theorem|lemma|def|abbrev|instance|structure)\s+([A-Za-z_][\w'.]*)")
+    r"(theorem|lemma|def|abbrev|instance|structure|axiom)\s+([A-Za-z_][\w'.]*)")
 NS = re.compile(r"^\s*namespace\s+([A-Za-z_][\w'.]*)")
 SECTION = re.compile(r"^\s*section\b")
 END = re.compile(r"^\s*end\b")
@@ -51,7 +51,8 @@ def iter_decls(lean_root: Path):
     anonymous `section` scopes, and skips keyword matches inside block
     comments. `private` matters downstream because doc-gen4 emits no doc
     page for private declarations; `kind` is the declaring keyword
-    (theorem/lemma/def/abbrev/instance/structure)."""
+    (theorem/lemma/def/abbrev/instance/structure/axiom — axioms carry
+    badges too, e.g. from a trust-base table)."""
     for f in sorted(lean_root.rglob("*.lean")):
         if ".lake" in f.parts:
             continue

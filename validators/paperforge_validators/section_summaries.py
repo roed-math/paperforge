@@ -2,6 +2,10 @@
 ``<introduction>`` child of the division. The *quality/difficulty-grading* of the
 summary is a skill (skills/section-summaries); this validator only enforces
 *presence*, which is the objective part.
+
+An editorial decision to run WITHOUT a summary (e.g. a short section whose
+opening prose already is one) is recorded, not silenced: list the division's
+xml:id in paper.toml [validators.section_summaries].exempt.
 """
 from __future__ import annotations
 
@@ -16,6 +20,8 @@ _DIVISIONS = {"chapter", "section", "appendix"}
 
 def check(config: dict) -> list[Finding]:
     findings: list[Finding] = []
+    exempt = set(config.get("validators", {})
+                 .get("section_summaries", {}).get("exempt", []))
     parser = etree.XMLParser(recover=True, resolve_entities=False)
     for f in ptx_files(config):
         try:
@@ -32,6 +38,8 @@ def check(config: dict) -> list[Finding]:
             has_intro = any(child.tag == "introduction" for child in div)
             if not has_intro:
                 xid = div.get("{http://www.w3.org/XML/1998/namespace}id") or "?"
+                if xid in exempt:
+                    continue
                 findings.append(Finding(
                     "section_summaries", "error",
                     f"<{div.tag}> has no <introduction> summary", f"{f.name}#{xid}"))
