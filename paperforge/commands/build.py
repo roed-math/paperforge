@@ -49,6 +49,10 @@ def _guard_accepted_maps(cfg) -> str | None:
 
 
 def build_web(cfg, plan: bool) -> int:
+    if not plan and not cfg.draft.is_file():
+        return fail(f"draft not found at {cfg.draft} — put the LaTeX draft "
+                    f"in place (paper.toml [inputs] ai_draft), then "
+                    f"`paperforge ingest --bootstrap`")
     msg = None if plan else _guard_accepted_maps(cfg)
     if msg:
         return fail(msg)
