@@ -50,7 +50,7 @@ advice = "style-corpus/ADVICE.md"
 
 [references]
 pdf_dir = "references/"         # local copies of cited works (for the ref check)
-bib     = "source/references.bib"
+bib     = "source/references.ptx"  # PreTeXt-native bibliography (converted)
 # Alphabetic reference labels + author-name ordering (tex2ptx bib-labels option)
 # labels = "references/bib-labels.json"
 
@@ -59,8 +59,11 @@ bib     = "source/references.bib"
 # is rewritten to \notnfar (visible dotted underline) by ingest/notation_far.py.
 # Derived data — recompute after edits; never hand-write \notnfar.
 far_words = 1500
-near_hover_delay_ms = 400   # plain symbols
-far_hover_delay_ms = 1000   # \notnfar-marked symbols
+near_hover_delay_ms = 200   # plain symbols (halved 2026-07-12 per author review)
+far_hover_delay_ms = 500    # \notnfar-marked symbols
+# Definition-site highlight: on hover, the defining occurrence flashes after
+# this short delay (just enough to skip drive-by mouses).
+defsite_highlight_delay_ms = 120
 
 # Prose term links (background/terminology hovers): optional map for
 # ingest/prose_terms.py; entries merge into the notation registry.
@@ -85,3 +88,58 @@ pretext_core_xsl = "/Users/roed/.ptx/2.43.2/core/xsl/pretext-html.xsl"
 #   pretext-latex.xsl  and  pretext-latex-classic.xsl  in the same core dir
 web_output   = "output/web"
 print_output = "output/print"
+
+# Sections deliberately running WITHOUT an <introduction> summary (a short
+# section whose opening prose already is one): recorded waivers, read by the
+# section_summaries validator.
+# [validators.section_summaries]
+# exempt = ["sec-example"]
+
+# Trust-base table (ingest/trust_table.py): joins the axiom census with
+# hand-authored row annotations and rewrites the marker block of the target
+# insertion; --check is a drift gate (run by build-web and the
+# artifact_drift validator). Omit the section to skip the step.
+# [trust_table]
+# project = "my-lean-project"           # <lean project="..."> on each row
+# target = "content/insertions/NN-intro-formalization.ptx"
+# annotations = "references/trust-annotations.json"
+# census = "crosswalk/axiom-citations.json"
+
+# ---- Project-site assembly (paperforge sitegen/ tools). Every block below
+# is optional; each sitegen step skips quietly when its knobs are absent.
+
+[site]
+dir = "web-assets/site"        # hand-authored site tree (rsynced whole)
+# pdf = "my-arxiv-preview.pdf" # site copy: output/site/paper.pdf
+
+# Version footers + drift gate (sitegen/gen_status.py): a site status.json
+# renders into every versions:begin/end marker block; extras are format
+# strings over the status.json fields; checks tie hand-edited fields to the
+# artifacts they duplicate (axiom_census counts status=="axiom" entries;
+# line_count counts non-blank lines, ~ allowed).
+# [site.status]
+# extras = ["axiom census: {axiom_interfaces} interfaces"]
+# tail_href = "reproducibility/"
+# tail_label = "reproducibility"
+# [site.status.checks.axiom_interfaces]
+# axiom_census = "crosswalk/axiom-citations.json"
+
+# Homepage background knowls (sitegen/gen_bg_knowls.py): first paragraphs
+# of these clusters, extracted from the built paper into bg-knowls.js.
+# Keep in sync with the homepage's anchors; the homepage script reads
+# window.<prefix>_KNOWLS / _MACROS.
+# [site.bg_knowls]
+# clusters = ["bg-topic-one", "bg-topic-two"]
+# js_global_prefix = "PF_BG"
+
+# Site favicon (sitegen/gen_favicon.py): glyph outlines from MathJax's New
+# Computer Modern font data on a rounded tile; sub is optional. Needs the
+# npm font package under vendor/ and rsvg-convert for the rasters.
+# [site.favicon]
+# title = "Q_2"
+# tile = "#1e5c3a"
+# ink = "#ffffff"
+# radius = 13         # corner radius on the 64-unit tile
+# embolden = 26       # stroke added to the outlines, in em/1000
+# main = { file = "dynamic/double-struck.js", code = 8474, advance = 777 }
+# sub = { char = "2", scale = 0.78, kern = 20, drop = 125 }
