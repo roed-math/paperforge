@@ -9,6 +9,9 @@
        follow-up (the goal is to stop hardcoding an absolute path). -->
   <xsl:import href="@@PRETEXT_CORE_XSL@@"/>
 
+  <xsl:variable name="author-metadata"
+                select="document('../content/authors.xml', /)/author-metadata"/>
+
   <!-- Inject the UI enhancement layer (slider + notation hovers) into every page.
        html.*.extra only emit the <script>/<link> tags; the files must be copied
        into the web output dir as a build step (see docs/HTML-FEATURES.md). -->
@@ -20,6 +23,45 @@
   <xsl:param name="lean.docs.root" select="'@@LEAN_DOCS_ROOT@@'"/>
   <xsl:param name="lean.docs.default.project" select="'@@LEAN_DEFAULT_PROJECT@@'"/>
   <xsl:param name="lean.docs.suffix" select="'#doc'"/>
+
+  <!-- Employment status is an author footnote, not PreTeXt's funding
+       <support>.  Standard author data remains in source/main.ptx; the
+       sidecar (content/authors.xml) supplies only this format-specific
+       annotation.  Authors with no footnote record fall through to core. -->
+  <xsl:template match="author[@xml:id]" mode="full-info">
+    <xsl:variable name="author-id" select="@xml:id"/>
+    <xsl:variable name="author-footnote"
+                  select="$author-metadata/record[author/@xml:id = $author-id]/author-footnote"/>
+    <xsl:choose>
+      <xsl:when test="$author-footnote">
+        <div class="author">
+          <div class="author-name">
+            <xsl:apply-templates select="personname"/>
+          </div>
+          <div class="author-info">
+            <xsl:if test="affiliation">
+              <xsl:apply-templates select="affiliation"/>
+              <xsl:if test="affiliation/following-sibling::*"><br/></xsl:if>
+            </xsl:if>
+            <xsl:if test="email">
+              <xsl:apply-templates select="email"/>
+            </xsl:if>
+            <div class="author-status-note">
+              <sup><xsl:value-of select="$author-footnote/@marker"/></sup>
+              <xsl:text> </xsl:text>
+              <xsl:apply-templates select="$author-footnote/node()"/>
+            </div>
+            <xsl:if test="support">
+              <div class="author-support"><xsl:apply-templates select="support"/></div>
+            </xsl:if>
+          </div>
+        </div>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:apply-imports/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
 
   <!-- (1) Inline <lean ref="Namespace.decl">label</lean> -> link to the
        formalization, tagged for a later hover/knowl enhancement. Distinct

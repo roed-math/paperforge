@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Canonical overrides for author metadata that tex2ptx cannot express.
+
+  tex2ptx extracts only the draft author's personname, and its repeatable
+  author option carries a name and affiliation lines but no email.  The build
+  therefore reconciles its generated frontmatter against this sidecar after
+  every ingest (scripts/apply-author-metadata.sh): each record REPLACES the
+  generated author whose personname matches one of the record's aliases, so a
+  record must restate everything it overrides (affiliation included), not
+  only the fields it adds.  Author footnotes (e.g. an incoming employment
+  status) live beside, rather than inside, the PreTeXt author element because
+  <support> denotes funding and is not appropriate for such notes; the HTML
+  and LaTeX conversions render them from here.
+
+  With no <record> elements the build step skips quietly and tex2ptx's
+  generated frontmatter stands.  A worked example:
+
+  <record key="jane-doe">
+    <aliases>
+      <personname>Jane Doe</personname>
+      <personname>Jane Q. Doe</personname>
+    </aliases>
+    <author xml:id="author-jane-doe">
+      <personname>Jane Doe</personname>
+      <institution><line>Department of Mathematics</line><line>Example University</line></institution>
+      <email>jane@example.edu</email>
+    </author>
+    <author-footnote marker="*">Incoming, Other Institute</author-footnote>
+  </record>
+-->
+<author-metadata>
+</author-metadata>
