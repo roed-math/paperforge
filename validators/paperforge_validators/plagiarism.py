@@ -79,14 +79,22 @@ def _extract_source_text(path: Path, cache_dir: Path) -> str | None:
     return None
 
 
+#: Housekeeping files that live in a sources directory by convention and
+#: are not cited works — indexing them would flag the paper against its own
+#: notes (and hide the "no readable sources" warning on a fresh instance).
+_NOT_A_SOURCE = {"readme.md", "provenance.md", "notes.md", "advice.md"}
+
+
 def _source_files(root: Path, sources: list[str]):
     for s in sources:
         p = (root / s) if not Path(s).is_absolute() else Path(s)
         if p.is_dir():
             yield from sorted(q for q in p.rglob("*")
-                              if q.suffix.lower() in (".pdf", ".txt", ".md", ".tex"))
+                              if q.suffix.lower() in (".pdf", ".txt", ".md",
+                                                      ".tex")
+                              and q.name.lower() not in _NOT_A_SOURCE)
         elif p.exists():
-            yield p
+            yield p          # named explicitly: the author means it
 
 
 def check(config: dict) -> list[Finding]:

@@ -5,9 +5,10 @@ guards against formalization drift.
 Reference implementation: this is the *pattern* the other validators follow.
 
 Project-aware: a badge carrying ``project="name"`` is validated against that
-project's tree — [inputs.formalizations.<name>] in paper.toml gives the root;
-badges without a project (or with an unlisted one) validate against the
-primary ``inputs.lean_project``.
+project's tree — ``[formalizations.<key>]`` in paper.toml gives the root (the
+deprecated ``[inputs] lean_project`` / ``[inputs.formalizations.*]`` shape is
+understood too). Badges without a project, or with an unlisted one, validate
+against the primary. An instance with no formalization skips.
 
 Approximation: declaration names are collected by scanning ``*.lean`` source with a
 namespace stack, rather than from the compiled environment. That is enough to catch
@@ -21,7 +22,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import Finding, ptx_files, instance_root
+from . import Finding, formalization_roots, ptx_files
 
 _LEAN_TAG = re.compile(r"<lean\b[^>]*ref=\"[^\"]+\"[^>]*>")
 _REF = re.compile(r"\bref=\"([^\"]+)\"")
@@ -57,14 +58,21 @@ def _refs(config: dict) -> list[tuple[str, str, Path]]:
 def check(config: dict) -> list[Finding]:
     # relative roots are instance-root-relative (running `paperforge-check
     # /path/to/instance` from anywhere must behave like running it inside);
-    # absolute roots pass through the join unchanged
-    base = instance_root(config)
-    primary = base / config["inputs"]["lean_project"]
-    roots: dict[str, Path] = {"": primary}
-    for name, rec in config["inputs"].get("formalizations", {}).items():
-        roots[name] = base / rec["root"]
+    # absolute roots pass through unchanged
+    roots = formalization_roots(config)
 
     findings: list[Finding] = []
+    if not roots:
+        # no formalization configured: badges, if any, cannot be checked
+        stray = {ref for ref, _proj, _f in _refs(config)}
+        if stray:
+            findings.append(Finding(
+                "lean_links", "warning",
+                f"{len(stray)} <lean> badge(s) in the source but no "
+                f"formalization configured in paper.toml — nothing to "
+                f"validate them against"))
+        return findings
+
     decls: dict[str, set[str]] = {}
     basenames: dict[str, set[str]] = {}
     for name, root in roots.items():

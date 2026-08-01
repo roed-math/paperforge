@@ -24,15 +24,27 @@ def site_dir(root: Path, config: dict) -> Path:
 
 
 def formalization_root(root: Path, config: dict, name: str) -> Path:
-    """Resolve a formalization's checkout from its badge-project name:
-    [inputs.formalizations.<name>].root, the primary [inputs].lean_project
-    when the name matches its basename, else formalizations/<name>."""
+    """Resolve a formalization's checkout from its badge-project name.
+
+    Understands both config generations — ``[formalizations.<key>]`` records
+    carrying ``name``/``root`` (what `paperforge init` writes) and the
+    deprecated ``[inputs] lean_project`` / ``[inputs.formalizations.<name>]``
+    shape — and falls back to ``formalizations/<name>``."""
+    def _resolve(value: str) -> Path:
+        p = Path(value).expanduser()
+        return p if p.is_absolute() else root / p
+
+    for key, rec in (config.get("formalizations") or {}).items():
+        if not isinstance(rec, dict) or "root" not in rec:
+            continue
+        if rec.get("name", key) == name:
+            return _resolve(rec["root"])
+
     inputs = config.get("inputs", {})
     rec = inputs.get("formalizations", {}).get(name)
     if rec and "root" in rec:
-        return root / rec["root"]
+        return _resolve(rec["root"])
     primary = inputs.get("lean_project")
     if primary and Path(primary).name == name:
-        p = Path(primary)
-        return p if p.is_absolute() else root / p
+        return _resolve(primary)
     return root / "formalizations" / name

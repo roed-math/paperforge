@@ -35,7 +35,8 @@ def check(config: dict) -> list[Finding]:
     root = instance_root(config)
     baseline_path = root / config.get("crosswalk", {}).get("dir", "crosswalk") \
         / "numbering-current.json"
-    draft = root / config["inputs"]["ai_draft"]
+    draft = root / config.get("inputs", {}).get("ai_draft",
+                                                "inputs/draft/main.tex")
     if not baseline_path.exists():
         return [Finding("numbering_drift", "warning",
                         f"no baseline at {baseline_path}; run tex2ptx --numbering first")]

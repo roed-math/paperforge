@@ -39,6 +39,57 @@ def instance_root(config: dict) -> Path:
     return Path(config["_root"])
 
 
+def formalization_roots(config: dict) -> dict[str, Path]:
+    """Badge-project name -> local checkout, for both config generations.
+
+    New shape (what ``paperforge init`` writes)::
+
+        [formalizations.primary]
+        name = "my-lean" ; root = "../my-lean"
+
+    Old shape (the first instance)::
+
+        [inputs]
+        lean_project = "../my-lean"
+        [inputs.formalizations.other]
+        root = "formalizations/other"
+
+    The primary project is also registered under ``""`` — badges with no
+    ``project=`` attribute validate against it. An instance with no
+    formalization returns an empty mapping, and the Lean checks skip.
+    """
+    base = instance_root(config)
+
+    def _resolve(value: str) -> Path:
+        p = Path(value).expanduser()
+        return p if p.is_absolute() else base / p
+
+    roots: dict[str, Path] = {}
+    new = config.get("formalizations")
+    if isinstance(new, dict) and new:
+        # `primary` first, so it wins the "" default slot
+        for key, rec in sorted(new.items(), key=lambda kv: kv[0] != "primary"):
+            if not isinstance(rec, dict) or "root" not in rec:
+                continue
+            name = rec.get("name", key)
+            roots[name] = _resolve(rec["root"])
+            roots.setdefault("", roots[name])
+        return roots
+
+    inputs = config.get("inputs", {})
+    primary = inputs.get("lean_project")
+    if primary:
+        path = _resolve(primary)
+        name = inputs.get("lean_project_name") or path.name
+        roots[name] = path
+        roots[""] = path
+    for name, rec in inputs.get("formalizations", {}).items():
+        if isinstance(rec, dict) and "root" in rec:
+            roots[name] = _resolve(rec["root"])
+            roots.setdefault("", roots[name])
+    return roots
+
+
 def ptx_files(config: dict) -> list[Path]:
     """All PreTeXt source files of the instance."""
     src = instance_root(config) / "source"
