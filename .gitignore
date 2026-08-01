@@ -1,2 +1,13 @@
 __pycache__/
 *.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# macOS finder/AppleDouble litter (never useful, and it rides along into
+# copied trees and archives)
+.DS_Store
+._*
+
+# agent worktrees / local session state
+.claude/
