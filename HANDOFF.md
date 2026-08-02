@@ -137,16 +137,33 @@ gq2's release-eve tooling is now paperforge's; the instance calls `$PF`:
 _As of the 2026-08-01 refresh. Always `git status` + `git log --oneline`
 before committing or pushing — you WILL see work you didn't make._
 
-- **paperforge**: the port series plus the 2026-08-01 second-project
-  readiness pass (below) are unpushed. Push when the user is ready.
-- **gq2-paper**: the port-consumption series is unpushed. The instance keeps
-  its own `scripts/build-web.sh` and `scripts/build-site.sh` and is
-  unaffected by the tool-side script deletions — but the CLI now covers
-  both, so migrating the instance to `paperforge build web` / `build site`
-  (and deleting its copies) is the natural next step, done deliberately with
-  a byte-diff of the output.
-- The site's stamped version footers and favicon.svg restamped once with
-  paperforge-named provenance notes — they ship on the next deploy.
+- **paperforge**: `origin/master` is at `726cc7d` (the port series is
+  pushed; CI green on it, 2026-07-27). The 2026-08-01 readiness pass below
+  is **unpushed** — so CI has not yet run the new macOS-integration matrix.
+  Push when the user is ready.
+- **gq2-paper**: the port-consumption series plus `c6e6691` (the
+  readiness-pass reconciliation) are unpushed. The instance keeps its own
+  `scripts/build-web.sh` and `scripts/build-site.sh` and is unaffected by
+  the tool-side script deletions — but the CLI now covers both, so
+  migrating the instance to `paperforge build web` / `build site` (and
+  deleting its copies) is the natural next step, done deliberately with a
+  byte-diff of the output. `paperforge migrate config --check` prints the
+  new-shape config whenever the old-shape paper.toml is retired.
+- **The live site is well behind HEAD**: `scripts/deploy.sh --dry-run` on
+  2026-08-01 showed 5408 files changed (the running example, popups,
+  restamped footers, favicon). Not deployed.
+
+## CI
+
+`.github/workflows/ci.yml`, on `roed-math/paperforge`; inspect with
+`gh run list --repo roed-math/paperforge`. A full run is ~1 minute: a
+`unit` matrix (Ubuntu + macOS, 3.11/3.13) running pytest and the three
+standalone validator fixtures, and an `integration` matrix (Ubuntu + macOS)
+that installs the PreTeXt CLI, builds the fixture, and runs
+`paperforge selftest`. `pretext` is installed UNPINNED, so CI has been
+exercising 2.45.0 while this machine runs 2.43.2 — both pass.
+gq2-paper has no CI (private, and a real build needs the Lean submodules);
+its gate is `paperforge check` locally, at 0 errors / 46 warnings.
 
 ## The 2026-08-01 second-project readiness pass (what changed)
 
@@ -182,6 +199,14 @@ Prompted by a second author adopting paperforge. Three categories:
   `paperforge build print`, and a rewritten `docs/GETTING-STARTED.md`.
   `init` now also scaffolds `agents.toml`, the style-corpus/references
   guidance, a directive example, and `requirements.txt`.
+- **What gq2 had to absorb** (`gq2-paper` `c6e6691`): the records config
+  PINS `sanitize.capacity_pattern` to the old loose rule — the 20 published
+  records really do contain its math-prose false positives ("Lemma
+  [private capacity]"), so `validate_formalization.py` only stays green with
+  the pin. `crosswalk/CROSSWALK.md` gained the two blueprint-regen commands;
+  both were verified to reproduce the committed chapter set, and **`--title`
+  must be passed** or the shipped heading changes to the paper.toml-derived
+  default. The build scripts and paper.toml now say what the CLI covers.
 
 ## Provenance / commit conventions
 
