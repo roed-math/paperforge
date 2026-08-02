@@ -99,6 +99,7 @@ skill.
 # Tool setup (once)
 git clone https://github.com/roed-math/paperforge
 python3 -m pip install -e paperforge -e paperforge/validators
+paperforge selftest               # runs the bundled fixture end to end
 
 # Instance setup
 mkdir my-paper && cd my-paper && git init
@@ -115,9 +116,11 @@ paperforge check                  # the eight validators
 paperforge review                 # the author cockpit
 ```
 
-This sequence is exercised end-to-end by CI against the public fixture
-([examples/minimal-paper](examples/minimal-paper)) — including from a
-directory with spaces in its path. The generative passes (summaries,
+`paperforge selftest` answers "is my environment right?" separately from
+"is my paper right?" — it runs the sequence above against the public
+fixture ([examples/minimal-paper](examples/minimal-paper)) in a throwaway
+directory. CI runs the same path on Ubuntu and macOS, including from a
+directory with spaces in its name. The generative passes (summaries,
 bridging, novelty, grammar) remain agent-executed skills on top of this
 deterministic core; **[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)**
 is the milestone-by-milestone walkthrough.
@@ -126,7 +129,7 @@ is the milestone-by-milestone walkthrough.
 
 | dir | what |
 |---|---|
-| `paperforge/` | the `paperforge` command: init, doctor, status, ingest/accept, build, check, review, migrate |
+| `paperforge/` | the `paperforge` command: init, selftest, doctor, status, ingest/accept, build, check, review, migrate |
 | `ingest/` | LaTeX→PreTeXt converter; crosswalk, notation, axiom-census, trust-table, novelty, corpus tools |
 | `validators/` | the `paperforge_validators` package (pip-installable; `paperforge-check` = `paperforge check`) |
 | `sitegen/` | project-site assembly: version footers + drift gate, homepage knowls, favicon, preview watcher |
@@ -134,14 +137,14 @@ is the milestone-by-milestone walkthrough.
 | `review/` | the review server + the paper-view editor/margin/marks layers it injects |
 | `skills/` | agent-executed passes, one SKILL.md each, Contract blocks throughout |
 | `pretext-template/` | instance scaffold: XSL conversions, publication files, web-assets UI layer, authors sidecar |
-| `templates/` | instance scaffold: `paper.toml`, build/deploy scripts, directive examples |
+| `templates/` | instance scaffold: the annotated `paper.toml`, agents/style-corpus/reference guidance, the deploy + vendor scripts |
 | `docs/` | see the index below |
 
 ## Documentation
 
 | doc | covers |
 |---|---|
-| [GETTING-STARTED](docs/GETTING-STARTED.md) | starting a second instance: requirements, scaffolding, the loop |
+| [GETTING-STARTED](docs/GETTING-STARTED.md) | empty directory to built, validated paper: install, selftest, scaffold, the loop |
 | [CONFIGURATION](docs/CONFIGURATION.md) | every config key: layers, path semantics, defaults, deprecations |
 | [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | first-build states, environment mismatches, drift gates, diagnostics |
 | [DEVELOPMENT](docs/DEVELOPMENT.md) | paired tool/instance development: editable install, provenance, parity discipline |
@@ -165,8 +168,9 @@ validators, converter, sitegen and records pipelines — and now the
 against it when generalized, and the onboarding path runs in CI against
 the public fixture. Known rough edges for a second project:
 
-- **One exercised real instance.** The fixture catches onboarding defects,
-  not real-paper complexity; the second paper will find assumptions.
+- **One exercised real instance.** The fixture and `paperforge selftest`
+  catch onboarding defects, not real-paper complexity; the second paper
+  will find assumptions.
 - **One numbering profile.** The simulator implements (and names)
   `amsart-shared-section-theorems-global-equations` and refuses others —
   verify against your draft's `.aux` before trusting a new convention.
@@ -178,8 +182,9 @@ the public fixture. Known rough edges for a second project:
   internals (and two upstream-bug workarounds) that may shift — the
   postprocessing stages error rather than silently ship when the emitted
   patterns change.
-- **The records pipelines' worked example lives in the instance**
-  (gq2-paper's `records-pipeline/`), not here.
+- **The records pipelines' worked example lives in the first instance's
+  `records-pipeline/`**, not here; the config shapes are documented in
+  each `records/` module's docstring.
 
 ## AI and mathematical writing
 

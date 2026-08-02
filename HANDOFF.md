@@ -1,11 +1,18 @@
 # Handoff — paperforge / gq2-paper
 
-Started 2026-07-12; **last refreshed 2026-07-27** (the port-back session:
-gq2's release-eve tooling absorbed into the tool; historical session
-narratives trimmed — git history and docs/ carry them). Working dir is
-usually `~/claude/lmfdb` but ALL work is in **`~/claude/paperforge`** (the
-general tool) and **`~/claude/gq2-paper`** (the first instance). **Read the
-project memory `paper-pipeline-pretext.md` first** — it carries the deep,
+> **Maintainer notes, not documentation.** This file is the working state of
+> paperforge's *maintainer* and its *first instance* (the G_Q2 paper), on one
+> particular machine. If you are starting a paper with paperforge, nothing
+> here applies to you: read [README.md](README.md) and
+> [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md). Everything a second
+> project needs is in `docs/`; no instance-specific behavior remains in the
+> tool.
+
+Started 2026-07-12; **last refreshed 2026-08-01** (the second-project
+readiness pass — see the bottom section). Working dir is usually
+`~/claude/lmfdb` but ALL work is in **`~/claude/paperforge`** (the general
+tool) and **`~/claude/gq2-paper`** (the first instance). **Read the project
+memory `paper-pipeline-pretext.md` first** — it carries the deep,
 chronological design record; this file is the actionable orientation layer
 on top of it.
 
@@ -65,13 +72,17 @@ export PATH=~/miniforge3/bin:$PATH        # do this first, every session
 cd ~/claude/gq2-paper
 scripts/build-web.sh                        # trust table -> ingest -> authors
                                             # -> census + drift gate -> build
-PYTHONPATH=~/claude/paperforge/validators python3 -m paperforge_validators.run_all
-pretext build arxiv && (cd output/arxiv && \
-  PATH=/Library/TeX/texbin:$PATH latexmk -pdf -interaction=nonstopmode main.tex)
+paperforge check                            # = python3 -m paperforge_validators.run_all
+paperforge build arxiv --pdf
 scripts/build-leandocs.sh
 scripts/build-site.sh && scripts/deploy.sh  # status stamp + bg knowls +
                                             # favicon + assemble + publish
 ```
+
+The instance still runs its own `scripts/build-web.sh` / `build-site.sh`;
+`paperforge build web` / `build site` now do the same work generically
+(`build site` delegates to an instance script when one exists). Migrating
+gq2 onto the CLI is pending a byte-diff of the outputs.
 
 **Gate baseline (2026-07-27): 0 errors, 46 warnings** (all plagiarism-
 overlap notes, inherited-from-draft or pipeline-added-with-attribution).
@@ -121,41 +132,56 @@ gq2's release-eve tooling is now paperforge's; the instance calls `$PF`:
 - templates/, paper.toml examples, docs (HTML-FEATURES, DEPLOYMENT,
   REFERENCES locator pins), and five skills refreshed to match.
 
-## Current state — parallel sessions are ACTIVE
+## Current state
 
-_As of the 2026-07-27 refresh. Always `git status` + `git log --oneline`
+_As of the 2026-08-01 refresh. Always `git status` + `git log --oneline`
 before committing or pushing — you WILL see work you didn't make._
 
-- **paperforge**: 19 commits unpushed (the port series + the older
-  editor/knowl work). Working tree clean. Push when the user is ready.
-- **gq2-paper**: 5 commits unpushed (the port-consumption series).
-  **Uncommitted, ANOTHER SESSION'S live work — do not touch or commit:**
-  `scripts/build-web.sh` gained a title-metadata Unicode sed
-  (\mathbb{Q}_2 → ℚ₂ in `<title>`/OG tags, 05:27). Once that session
-  commits, port the step to `templates/build-web.sh`.
-- The author's emacs still holds an open buffer on the (now moved) review
-  queue; its unsaved inline answers were recovered from the autosave and
-  committed in `reviews/gq2-review-queue-2026-07-26.md`.
+- **paperforge**: the port series plus the 2026-08-01 second-project
+  readiness pass (below) are unpushed. Push when the user is ready.
+- **gq2-paper**: the port-consumption series is unpushed. The instance keeps
+  its own `scripts/build-web.sh` and `scripts/build-site.sh` and is
+  unaffected by the tool-side script deletions — but the CLI now covers
+  both, so migrating the instance to `paperforge build web` / `build site`
+  (and deleting its copies) is the natural next step, done deliberately with
+  a byte-diff of the output.
 - The site's stamped version footers and favicon.svg restamped once with
   paperforge-named provenance notes — they ship on the next deploy.
 
-## Open work / next actions
+## The 2026-08-01 second-project readiness pass (what changed)
 
-- **Push both repos** when the user is ready; **check deploy currency**
-  (`deploy.sh --dry-run`) — the restamped footers are undeployed.
-- **Records config decision**: `roe_squarecommutator` sessions are in the
-  ledger totals but not the per-session rows (matching the published
-  state) — adding the category to `apply_site.ledger_categories` (+ label
-  + name prefix) is now a one-line config choice.
-- **Review-queue answers**: the author's inline answers ("Approved", "list
-  format needs readability work", …) are committed; verify each was
-  actually followed through.
-- **Editor follow-ups** (docs/EDITOR.md): Lane-2 briefing refinement;
-  optimistic in-place block swap after rebuilds.
-- **Standing author items**: v4.28 tex from Turturean (exact eq
-  crosswalk); N9 novelty discussion; GitHub Pages enabling is manual
-  (our token 404s on the Pages API).
-- **MathJax SSR prerender** remains the next perf step if lazy isn't enough.
+Prompted by a second author adopting paperforge. Three categories:
+
+- **Portability.** `templates/build-web.sh` and
+  `templates/apply-author-metadata.sh` DELETED — both were superseded by
+  `paperforge build web` (`postprocess/web.py` + `_stages.author_metadata`)
+  and the former carried the last BSD-only `sed -i ''`.
+  `templates/build-site.sh` deleted too: site assembly is now
+  `paperforge/postprocess/site.py` (no rsync, no perl). `.DS_Store`
+  untracked; `.gitignore` covers macOS litter. CI runs the *full* fixture
+  build and `paperforge selftest` on macOS as well as Ubuntu.
+- **Real bugs.** `paperforge init --site` wrote a `scripts/build-site.sh`
+  that re-entered `paperforge build site` → fork bomb (193 processes in 12s
+  when reproduced); the shim is gone and `build site` refuses re-entry. The
+  validators read only the deprecated `[inputs] lean_project`, so
+  `paperforge check` crashed on EVERY instance `init` creates and on every
+  `--no-lean` paper (`formalization_roots()` now handles both shapes; same
+  fix in `sitegen/_common.py`). `paper-style.css` imported a `fonts-cm.css`
+  the template never shipped (404 per page). `paperforge review --port N`
+  passed the port positionally and the server rejected it.
+- **Genericity + onboarding.** gq2 defaults removed from
+  `templates/paper.toml` (also rewritten in the new config shape),
+  `detail-ui.css` (`lean-proj-gq2-gpt`), `lean_knowls.py`,
+  `blueprint_gen.py` (`--project`/`--module` now required; title defaults to
+  the paper's own), `lean_ledger.py`, `lean_axioms.py`, `tex2ptx.py`,
+  `trust_table.py`, and five skills. `records/sanitize.py`'s capacity
+  redaction no longer eats math prose ("Lemma 9.2 core") — set
+  `sanitize.capacity_pattern = CAPACITY_PATTERN_LOOSE` in the records config
+  to reproduce the published gq2 corpus byte-for-byte. New:
+  `paperforge selftest` (fixture end-to-end in a scratch dir),
+  `paperforge build print`, and a rewritten `docs/GETTING-STARTED.md`.
+  `init` now also scaffolds `agents.toml`, the style-corpus/references
+  guidance, a directive example, and `requirements.txt`.
 
 ## Provenance / commit conventions
 
@@ -163,7 +189,11 @@ One logical change per commit. Trailer `Co-Authored-By: Claude Fable 5
 <noreply@anthropic.com>` for our edits; author-supplied changes carry
 `Generated-by:` naming the model; proposal artifacts carry per-item
 `generator` / top-level `_generator`. Deploy commits record source SHAs.
-The review UI shows "proposed by" on every card. Keep the template copies
-in `paperforge/pretext-template/` and `templates/` in sync with the gq2
-instance — the synced surface now spans web-assets, xsl, publication,
-project.ptx, and the build/deploy scripts (modulo `@@PLACEHOLDERS@@`).
+The review UI shows "proposed by" on every card.
+
+Template/instance sync: `pretext-template/` and `templates/` track the gq2
+instance across web-assets, xsl, publication and project.ptx (modulo
+`@@PLACEHOLDERS@@`) — but **genericity now outranks byte-parity**. Where the
+instance needs something named after itself (its second formalization's
+badge color, its build scripts), the template carries the generic form and a
+commented example, and the instance keeps its own copy.

@@ -1,11 +1,12 @@
 """The `paperforge` command: deterministic onboarding, builds, and checks.
 
     paperforge init [PATH] [--title ... --slug ... --draft ... --no-lean ...]
+    paperforge selftest [--keep] [--no-build]
     paperforge doctor [INSTANCE]
     paperforge status [INSTANCE]
     paperforge ingest [INSTANCE] [--bootstrap]
     paperforge accept lean-decl-map [INSTANCE] [--formalization NAME]
-    paperforge build {web,arxiv,site} [INSTANCE] [--plan]
+    paperforge build {web,arxiv,print,site} [INSTANCE] [--plan] [--pdf]
     paperforge check [INSTANCE] [validator args...]
     paperforge review [INSTANCE]
     paperforge migrate config [INSTANCE] [--check]
@@ -32,9 +33,10 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="command", required=True)
 
     from .commands import (accept, build, check, doctor, initcmd, ingest,
-                           migrate, review, status)
+                           migrate, review, selftest, status)
 
     initcmd.add_parser(sub)
+    selftest.add_parser(sub)
     doctor.add_parser(sub)
     status.add_parser(sub)
     ingest.add_parser(sub)

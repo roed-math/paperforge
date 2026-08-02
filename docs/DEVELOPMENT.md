@@ -64,10 +64,16 @@ you which one is active.
 ## Tests
 
 ```bash
-python3 -m pytest tests/ -q        # units + the spaces-in-path smoke
+python3 -m pytest tests/ -q                            # units + the spaces-in-path smoke
+python3 validators/tests/test_content_validators.py    # standalone validator fixtures
+python3 validators/tests/test_notation_far.py
+python3 validators/tests/test_formalization_roots.py
+paperforge selftest                                    # the user-facing end-to-end path
 ```
 
-CI (`.github/workflows/ci.yml`) runs the unit/bootstrap matrix on Ubuntu
-and macOS plus a full fixture build with the PreTeXt CLI installed. The
-private instance can't run in public CI — after tool changes, run the
-instance's build + `paperforge check` locally and confirm a clean tree.
+CI (`.github/workflows/ci.yml`) runs the unit/bootstrap matrix and the
+full fixture build (PreTeXt installed) on **both** Ubuntu and macOS —
+portability regressions like a BSD-only `sed -i ''` fail there rather
+than at a new user's first build. The private instance can't run in
+public CI — after tool changes, run the instance's build + `paperforge
+check` locally and confirm a clean tree.

@@ -10,7 +10,7 @@ JS/CSS layer injected via the `html.js.extra` / `html.css.extra` params.
 A custom inline element:
 
 ```xml
-<lean ref="Gq2.presentation">Gq2.presentation</lean>
+<lean ref="MyProject.main_theorem">MyProject.main_theorem</lean>
 ```
 
 `xsl/custom-html.xsl` renders it as a pill-styled link into the doc-gen4
@@ -117,7 +117,7 @@ literal values.
 The click-to-open panels detail-ui.js injects (Lean declaration knowls,
 section-summary knowls) carry ARIA state: the toggle link tracks
 `aria-expanded`, and each panel is a `role="region"` with an `aria-label`
-naming its content ("Lean declaration GQ2.foo"; the division's label and
+naming its content ("Lean declaration MyProject.foo"; the division's label and
 title). New injected-panel features should follow the same pattern.
 
 ## Homepage links and the ToC default

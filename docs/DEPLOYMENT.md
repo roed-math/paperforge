@@ -29,7 +29,8 @@ never touches `output/web`. So a deployed site uses the CDN by construction;
 are different: they are committed instance assets (`web-assets/fonts/`) and
 ship with the site.
 
-`build-web.sh --deploy` is the placeholder for deployment deltas as they
+`paperforge build web` is the single build entry point; this is where
+deployment deltas land as they
 appear — project-page base path (`user.github.io/repo/`), versioned snapshot
 directory, any published-only toggles. Asset handling needs nothing from it
 today.
@@ -120,7 +121,7 @@ session transcripts and the Lean swarm's ticket/lane records.
 
 **Decision (2026-07-10): direct push to a separate public site repo, not
 PRs.** The source repos stay private; a public repo (e.g.
-`roed-math/gq2-site`) holds only the assembled site and GitHub Pages serves
+`<you>/<paper>-site`) holds only the assembled site and GitHub Pages serves
 its `main` branch. Deploys are single commits recording the source SHAs
 (paper repo + formalization submodule) for provenance. PRs against the site
 repo were considered and rejected: a diff of generated HTML is unreviewable,
@@ -129,19 +130,22 @@ upstream (validators + the author dashboards), and running `deploy.sh` *is*
 the publish decision. If a co-author sign-off gate is ever wanted, the same
 script can open a PR instead of pushing; revisit then.
 
-Scripts (templates here; stamped per instance):
+Assembly and deployment:
 
-- `scripts/build-site.sh` — assemble `output/site/`: the hand-authored site
-  tree (`web-assets/site/`, rsynced whole), the PreTeXt web build
-  (`/paper/`), the arXiv PDF (`/paper.pdf`), every Verso blueprint render
-  (`/blueprint*/`), and the doc-gen4 subsets (`/lean/`). Every rsync
-  excludes macOS AppleDouble sidecars (`._*`) and editor droppings. Two
-  sitegen steps run first and two after: `gen_status.py` (below) and
-  `gen_bg_knowls.py` (homepage background knowls) before assembly; the
-  VersoBlueprint DOT arrow-size bump and `apply_favicon.py` (favicon links
-  stamped into every generated page, depth-correct — GitHub Pages project
-  subpaths defeat the implicit `/favicon.ico` lookup) after.
-- `scripts/deploy.sh [--dry-run|--test]` — rsync the tree into a shallow
+- `paperforge build site` — assemble `output/site/`: the hand-authored site
+  tree (`[site] dir`, copied whole), the PreTeXt web build (`/paper/`), the
+  arXiv PDF (`/paper.pdf`), every Verso blueprint render (`/blueprint*/`),
+  and the doc-gen4 subsets (`/lean/`). Every copy drops macOS AppleDouble
+  sidecars (`._*`), `.DS_Store` and editor droppings. Two sitegen steps run
+  first and two after: `gen_status.py` (below) and `gen_bg_knowls.py`
+  (homepage background knowls) before assembly; the VersoBlueprint DOT
+  arrow-size bump and `apply_favicon.py` (favicon links stamped into every
+  generated page, depth-correct — GitHub Pages project subpaths defeat the
+  implicit `/favicon.ico` lookup) after. Missing pieces are named as
+  warnings, never failures, so a partial site still assembles. An instance
+  that keeps its own `scripts/build-site.sh` runs that instead.
+- `scripts/deploy.sh [--dry-run|--test]` — copy `templates/deploy.sh` into
+  the instance and fill its two repo placeholders. It rsyncs the tree into a shallow
   clone of the site repo, commit with source SHAs (the paper repo plus
   every formalization checkout), push. `--test` targets the configured
   test-site repo with a **per-target clone**, so a test deploy can never
@@ -158,14 +162,16 @@ toolchains, mathlib pins, PDF checksum, hand-edited counts).
 artifacts, verifies hand-edited fields against the artifacts they duplicate
 (declared in paper.toml `[site.status.checks]`), and rewrites every
 `<!-- versions:begin/end -->` marker block under the site tree; `--check`
-is the drift gate (run by the `artifact_drift` validator and build-site).
+is the drift gate (run by the `artifact_drift` validator and
+`paperforge build site`).
 
 **Records pipelines (optional).** The development-record machinery —
 per-session token ledger, sanitized session corpora with deterministic
 archives, and the dashboard apply/check steps — lives in paperforge
 `records/` as three config-gated pipelines; an instance opts in by giving
-its records config the corresponding blocks (see gq2-paper's
-`records-pipeline/config.json` and README for the worked example).
+its records config the corresponding blocks. The worked example lives in
+the first instance's `records-pipeline/`, not in this repo — see the
+module docstrings in `records/` for each pipeline's config shape.
 
 Promote to a GitHub Action once the pieces settle. The PreTeXt publication
 file and asset URLs must respect the project-page base path.

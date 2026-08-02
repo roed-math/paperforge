@@ -205,6 +205,53 @@ def test_tex2ptx_tolerates_missing_maps(tmp_path):
 
 # ---------------------------------------------------------- postprocess
 
+def test_site_assembly_is_portable_and_selective(tmp_path):
+    from paperforge.postprocess import site as ppsite
+    (tmp_path / "paper.toml").write_text(NEW_SHAPE)
+    src = tmp_path / "web-assets" / "site"
+    src.mkdir(parents=True)
+    (src / "index.html").write_text("<h1>home</h1>")
+    (src / ".DS_Store").write_bytes(b"\x00mac")
+    (src / "._index.html").write_bytes(b"\x00appledouble")
+    web = tmp_path / "output" / "web"
+    web.mkdir(parents=True)
+    (web / "paper.html").write_text("<p>paper</p>")
+
+    warnings: list[str] = []
+    ppsite.assemble(load_instance(tmp_path), warnings.append)
+    site = tmp_path / "output" / "site"
+    assert (site / "index.html").is_file()
+    assert (site / "paper" / "paper.html").is_file()
+    # macOS litter never reaches a web server
+    assert not (site / ".DS_Store").exists()
+    assert not (site / "._index.html").exists()
+    # a missing PDF is named, not fatal
+    assert any("paper.pdf" in w for w in warnings)
+
+    # re-assembly is a clean rebuild, not an accumulation
+    (site / "stale.html").write_text("x")
+    ppsite.assemble(load_instance(tmp_path), warnings.append)
+    assert not (site / "stale.html").exists()
+
+
+def test_init_site_scaffold_does_not_recurse(tmp_path):
+    """`--site` must never leave a scripts/build-site.sh that calls back
+    into `paperforge build site` (that pair fork-bombs)."""
+    target = tmp_path / "inst"
+    assert _pf("init", str(target), "--non-interactive", "--no-lean",
+               "--site").returncode == 0
+    assert (target / "web-assets/site/index.html").is_file()
+    script = target / "scripts" / "build-site.sh"
+    if script.is_file():
+        assert "paperforge build site" not in script.read_text()
+    from paperforge.commands.build import _instance_site_script
+    assert _instance_site_script(load_instance(target)) is None
+    # a legacy shim left by an older init is ignored rather than re-entered
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text("#!/bin/sh\nexec python3 -m paperforge build site .\n")
+    assert _instance_site_script(load_instance(target)) is None
+
+
 def test_postprocess_idempotent_and_honest(tmp_path):
     web = tmp_path / "web"
     js = web / "_static/pretext/js/mathjax_startup.js"

@@ -7,10 +7,12 @@ on:
 
 jobs:
   # Unit + bootstrap smoke: no PreTeXt/TeX — config normalization, init,
-  # converter genericity, candidate maps, postprocess idempotency, and the
-  # literal onboarding sequence in a spaces-in-path scratch instance.
+  # converter genericity, candidate maps, site assembly, postprocess
+  # idempotency, and the literal onboarding sequence in a spaces-in-path
+  # scratch instance.
   unit:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         python: ["3.11", "3.13"]
@@ -25,18 +27,36 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python3 -m pip install -e . -e validators/ pytest
       - run: python3 -m pytest tests/ -q
+      # the validator fixtures are standalone scripts (no pytest dependency)
+      - run: python3 validators/tests/test_content_validators.py
+      - run: python3 validators/tests/test_notation_far.py
+      - run: python3 validators/tests/test_formalization_roots.py
 
-  # Full quickstart including `paperforge build web` on the public fixture:
-  # installs the PreTeXt CLI (its core resources materialize on demand) and
-  # asserts the built page, badges, bundle, provenance, and the validators'
-  # expected findings.
+  # Full quickstart including `paperforge build web` on the public fixture,
+  # on BOTH platforms: installs the PreTeXt CLI (its core resources
+  # materialize on demand) and asserts the built page, badges, bundle,
+  # provenance, and the validators' expected findings. `selftest` runs the
+  # same path a new user runs to verify their own machine, so a failure
+  # here is a failure they would hit on day one.
   integration:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: sudo apt-get update && sudo apt-get install -y libxml2-utils xsltproc poppler-utils
+      - name: system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update &&
+             sudo apt-get install -y libxml2-utils xsltproc poppler-utils
+      - name: system dependencies (macOS)
+        # xsltproc and xmllint ship with macOS; poppler supplies pdftotext
+        if: runner.os == 'macOS'
+        run: brew install poppler
       - run: python3 -m pip install -e . -e validators/ pytest pretext
       - run: python3 -m pytest tests/test_smoke.py -q
+      - run: python3 -m paperforge selftest

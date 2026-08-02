@@ -58,9 +58,9 @@ running it inside.
 
 ## [style], [references], [notation], [detail], [plagiarism]
 
-As in `templates/paper.toml` (annotated) — corpus/advice paths; reference
-`pdf_dir`/`bib`/`labels`; notation `far_words`, hover delays, `prose_map`;
-detail tiers; plagiarism `ngram`/`error_run`/`sources`.
+As in `templates/paper.toml` (the annotated catalogue) — corpus/advice
+paths; reference `pdf_dir`/`bib`/`labels`; notation `far_words`, hover
+delays, `prose_map`; detail tiers; plagiarism `ngram`/`error_run`/`sources`.
 
 ## [build]
 
@@ -75,7 +75,8 @@ detail tiers; plagiarism `ngram`/`error_run`/`sources`.
 Subsystem blocks passed through raw: validator waivers
 (`[validators.section_summaries].exempt`), the trust-base table, the
 `[site]` family (docs/DEPLOYMENT.md), and the records pipelines' own JSON
-config (gq2-paper's `records-pipeline/` is the worked example).
+config (the first instance's `records-pipeline/` is the worked example;
+the per-pipeline config shapes are in the `records/` module docstrings).
 
 ## Examples
 
@@ -85,5 +86,7 @@ Zero formalizations: omit every formalization table — badges, census, and
 One: `[formalizations.primary]` with `name`/`root` (+ `module`, `declmap`).
 
 Two: add `[formalizations.<name>]` with `badge_cap` when its proof style
-decomposes statements into many declarations. The exercised two-project
-instance is gq2-paper's paper.toml (old shape, normalized on load).
+decomposes statements into many declarations, and give it a badge color
+in `web-assets/detail-ui.css` (a commented example sits at the
+`lean-proj-` rules). The first instance runs two projects on the old
+shape, normalized on load.

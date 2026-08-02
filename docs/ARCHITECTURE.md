@@ -95,7 +95,7 @@ audit. Re-running any skill or validator is idempotent; skills consume their inp
    independently re-runnable.
 3. **validate** — `paperforge-check` (the pip-installed
    `paperforge_validators.run_all`; CI gate).
-4. **build** — the instance's `scripts/build-web.sh` (which wraps
+4. **build** — `paperforge build web` (which wraps
    `pretext build web` in the ingest/census/registry sequence) and
    `pretext build arxiv`/`print` for LaTeX.
 

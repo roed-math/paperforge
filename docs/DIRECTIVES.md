@@ -23,7 +23,10 @@ Placement is unambiguous because the location *is* the instruction.
 
 ### 2. Sidecar queue — when placement needs to be found
 
-Files in `directives/NNNN-slug.md`, for "add this somewhere appropriate":
+Files in `directives/NNNN-slug.md`, for "add this somewhere appropriate".
+Only that top level is the queue: `directives/applied/` is the archive, and
+`directives/examples/` — where `paperforge init` drops a worked example — is
+ignored by both the apply pass and the validator.
 
 ```markdown
 ---

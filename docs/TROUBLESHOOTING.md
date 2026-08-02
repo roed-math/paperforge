@@ -2,7 +2,11 @@
 
 Public, stable guidance — nothing here depends on maintainer handoff notes.
 `paperforge doctor` should be your first move for anything
-environment-shaped: it names the problem and the next command.
+environment-shaped: it names the problem and the next command. When you
+cannot tell whether the problem is your environment or your paper, run
+`paperforge selftest`: it drives the bundled fixture through the whole
+sequence in a scratch directory, so a pass means the install is sound and
+the fault is in the instance.
 
 ## Interpreter mismatch
 

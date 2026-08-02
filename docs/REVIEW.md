@@ -49,7 +49,8 @@ author decided. The server is stdlib-only and binds to localhost.
 **Local assets (no CDN latency).** The Computer Modern prose fonts are
 vendored in the instance (`web-assets/fonts/`, ~550K, committed). MathJax
 and its math-font package are larger (~30MB) and fetched once by
-`scripts/fetch-vendor.sh` into the gitignored `vendor/`; when present, the
+`templates/fetch-vendor.sh` (copy it into the instance's `scripts/`) into
+the gitignored `vendor/`; when present, the
 review server serves them at `/mathjax/` and `/mjx-font/` and rewrites both
 the page script tags and the bundle's internal CDN font base — pages load
 with zero jsdelivr requests. Without the vendor dir everything falls back to
