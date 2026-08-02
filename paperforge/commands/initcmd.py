@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -74,11 +75,43 @@ set -euo pipefail
 exec python3 -m paperforge build web "$(cd "$(dirname "$0")/.." && pwd)" "$@"
 """
 
-_SHIM_BUILD_SITE = """\
-#!/usr/bin/env bash
-set -euo pipefail
-exec python3 -m paperforge build site "$(cd "$(dirname "$0")/.." && pwd)" "$@"
+#: --site: the hand-authored homepage of the project site. Deliberately
+#: plain HTML with no build step — `paperforge build site` copies this tree
+#: whole and mounts the generated trees beside it.
+_SITE_INDEX = """\
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@@TITLE@@</title>
+<style>
+  body { max-width: 44rem; margin: 4rem auto; padding: 0 1.5rem;
+         font: 16px/1.6 Georgia, serif; }
+  h1 { font-size: 1.6rem; }
+  nav a { display: block; margin: .4rem 0; }
+</style>
+<h1>@@TITLE@@</h1>
+<p>Replace this page with the project homepage. Everything in this
+directory is copied to the root of the assembled site.</p>
+<nav>
+  <a href="paper/paper.html">Read the paper</a>
+  <a href="paper.pdf">PDF</a>
+  <!-- lit up once built: <a href="blueprint/">Blueprint</a>
+       <a href="lean/">Formalization docs</a> -->
+</nav>
 """
+
+#: Copied verbatim from templates/ into the instance (guidance the author
+#: edits in place, not scaffolding the tool owns).
+_TEMPLATE_FILES = {
+    "agents.toml": "agents.toml",
+    "style-corpus/README.md": "style-corpus/README.md",
+    "style-corpus/ADVICE.md": "style-corpus/ADVICE.md",
+    "references/README.md": "references/README.md",
+    # NOT directives/EXAMPLE.md: the directives validator reads every
+    # directives/*.md as a live directive, and the example's target xml:id
+    # does not exist in a fresh paper. Subdirectories are not scanned.
+    "directives/EXAMPLE.md": "directives/examples/EXAMPLE.md",
+}
 
 #: committed XSL -> (placeholder it carries, gitignored local shim, core file)
 _XSL_WIRING = {
@@ -114,12 +147,21 @@ def add_parser(sub) -> None:
                    help="path to the installed pretext-html.xsl "
                         "(default: newest under ~/.ptx/*/core/xsl)")
     p.add_argument("--site", action="store_true",
-                   help="also scaffold the project-site build script")
+                   help="also scaffold a project-site homepage "
+                        "(web-assets/site/, assembled by `build site`)")
     p.add_argument("--force", action="store_true",
                    help="scaffold into a non-empty directory")
     p.add_argument("--non-interactive", action="store_true",
                    help="never prompt; use flag values and defaults")
     p.set_defaults(func=run)
+
+
+def _pretext_version() -> str | None:
+    """The installed PreTeXt CLI's version, for the scaffold's
+    requirements.txt (PreTeXt warns on every build without one)."""
+    from ..provenance import pretext_version
+    v = (pretext_version() or "").strip()
+    return v if re.fullmatch(r"\d+(\.\d+)*", v) else None
 
 
 def discover_core_xsl() -> Path | None:
@@ -320,15 +362,39 @@ def run(args, extra) -> int:
         (target / ".gitignore").write_text(_GITIGNORE)
         copied.append(".gitignore")
 
-    shims = {"scripts/build-web.sh": _SHIM_BUILD_WEB}
-    if args.site:
-        shims["scripts/build-site.sh"] = _SHIM_BUILD_SITE
-    for rel, content in shims.items():
+    # `paperforge build site` assembles the site natively — there is no
+    # site script to scaffold (a shim that called back into the command
+    # would recurse); --site only turns the [site] block on.
+    for rel, content in {"scripts/build-web.sh": _SHIM_BUILD_WEB}.items():
         p = target / rel
         if not p.exists():
             p.write_text(content)
             p.chmod(0o755)
             copied.append(rel)
+
+    if args.site:
+        home = target / "web-assets" / "site" / "index.html"
+        if not home.exists():
+            home.parent.mkdir(parents=True, exist_ok=True)
+            home.write_text(_SITE_INDEX.replace("@@TITLE@@", args.title))
+            copied.append(str(home.relative_to(target)))
+
+    # author-facing guidance files: copied once, then owned by the instance
+    templates = tool_root() / "templates"
+    for src_rel, dst_rel in _TEMPLATE_FILES.items():
+        src, dst = templates / src_rel, target / dst_rel
+        if src.is_file() and not dst.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+            copied.append(dst_rel)
+
+    # PreTeXt reads the project's pinned CLI version from requirements.txt;
+    # without one every build prints two warnings.
+    req = target / "requirements.txt"
+    if not req.exists():
+        pv = _pretext_version()
+        req.write_text(f"pretext{'==' + pv if pv else ''}\n")
+        copied.append("requirements.txt")
 
     # ---- self-checks: no placeholders, sidecars parse
     problems = []

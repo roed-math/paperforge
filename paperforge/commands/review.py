@@ -59,7 +59,7 @@ def run(args, extra) -> int:
     server = tool_root() / "review" / "review_server.py"
     cmd = [sys.executable, str(server)]
     if args.port:
-        cmd.append(str(args.port))
+        cmd += ["--port", str(args.port)]
     print(f"starting review server (cwd {cfg.root}); Ctrl-C to stop")
     proc = subprocess.Popen(cmd, cwd=cfg.root)
     pid_file.write_text(str(proc.pid) + "\n")

@@ -1,0 +1,37 @@
+/* Computer Modern webfonts for the prose (paper-style.css imports this and
+   falls back to "Latin Modern Roman", Georgia, serif when no @font-face
+   below resolves — the paper renders fine either way; math is Computer
+   Modern via MathJax regardless).
+
+   To get the LaTeX look in prose, drop four woff files into
+   web-assets/fonts/ and uncomment the block. They are the CM Unicode faces
+   (SIL OFL / public-domain-equivalent; see the cm-unicode distribution):
+
+       cmunrm.woff   roman        cmunbx.woff   bold
+       cmunti.woff   italic       cmunbi.woff   bold italic
+
+   `paperforge build web` copies web-assets/fonts/ and this file into the
+   build output, so relative urls resolve as written. */
+
+/*
+@font-face {
+  font-family: 'Computer Modern Serif';
+  src: url('fonts/cmunrm.woff') format('woff');
+  font-weight: normal; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Computer Modern Serif';
+  src: url('fonts/cmunbx.woff') format('woff');
+  font-weight: bold; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Computer Modern Serif';
+  src: url('fonts/cmunti.woff') format('woff');
+  font-weight: normal; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'Computer Modern Serif';
+  src: url('fonts/cmunbi.woff') format('woff');
+  font-weight: bold; font-style: italic; font-display: swap;
+}
+*/
