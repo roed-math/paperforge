@@ -105,8 +105,8 @@ def _check_environment(rep: Report) -> None:
         if _PRETEXT_EXERCISED.match(pv):
             rep.ok(f"PreTeXt {pv}")
         else:
-            rep.warn(f"PreTeXt {pv} — the XSL overrides are exercised against "
-                     f"2.43.x; expect drift on other versions")
+            rep.warn(f"PreTeXt {pv} — the XSL overrides are exercised "
+                     f"against 2.43-2.45; expect drift on other versions")
 
 
 def _check_instance(rep: Report, cfg: InstanceConfig) -> None:

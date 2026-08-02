@@ -178,7 +178,9 @@ the public fixture. Known rough edges for a second project:
   files an agent follows (Claude Code today); there is no
   `paperforge run <skill>` driver yet — deliberately deferred until a
   second harness is real.
-- **PreTeXt 2.43.x is what's exercised**; the XSL overrides ride on core
+- **PreTeXt 2.43–2.45 is what's exercised** (2.43.2 on the first
+  instance, whatever `pip install pretext` gives CI — 2.45.0 today); the
+  XSL overrides ride on core
   internals (and two upstream-bug workarounds) that may shift — the
   postprocessing stages error rather than silently ship when the emitted
   patterns change.

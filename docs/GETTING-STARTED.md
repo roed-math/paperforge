@@ -31,7 +31,7 @@ you what each is for:
 | need | why | blocking? |
 |---|---|---|
 | Python ≥ 3.11 with `lxml`, `pyyaml` | the tool itself | yes |
-| PreTeXt CLI (2.43.x exercised) | the HTML and LaTeX builds | yes |
+| PreTeXt CLI (2.43–2.45 exercised) | the HTML and LaTeX builds | yes |
 | TeX Live + `latexmk` | the arXiv/print PDFs | only for PDFs |
 | `xsltproc` + `xmllint` | the author-metadata step | only with author records |
 | `pdftotext` (poppler) | plagiarism + reference-pin checks | no, degrades |
