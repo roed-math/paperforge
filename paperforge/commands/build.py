@@ -7,25 +7,29 @@ output/build-provenance.json and never blocks on a dirty tool checkout.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+from pathlib import Path
 
 from ..config import ConfigError
 from ..provenance import short_stamp, write_provenance
 from ..state import candidate_declmap
 from . import _stages as st
+from ..postprocess import site as ppsite
 from ..postprocess import web as ppweb
 from ._common import add_instance_arg, fail, load
 
 
 def add_parser(sub) -> None:
     p = sub.add_parser("build", help="build the paper (web/arxiv/site)")
-    p.add_argument("target", choices=["web", "arxiv", "site"])
+    p.add_argument("target", choices=["web", "arxiv", "print", "site"])
     add_instance_arg(p)
     p.add_argument("--plan", action="store_true",
                    help="print the stage plan without changing files")
     p.add_argument("--pdf", action="store_true",
-                   help="arxiv: also run latexmk on the generated LaTeX")
+                   help="arxiv: also run latexmk on the generated LaTeX "
+                        "(the print target builds a PDF directly)")
     p.set_defaults(func=run)
 
 
@@ -96,12 +100,16 @@ def build_web(cfg, plan: bool) -> int:
     return 0
 
 
-def build_arxiv(cfg, plan: bool, pdf: bool) -> int:
+def build_latex(cfg, target: str, plan: bool, pdf: bool) -> int:
+    """arxiv (journal-style LaTeX for submission) or print (PDF at the full
+    detail tier). The PreTeXt `print` target produces a PDF itself, so
+    --pdf applies only to arxiv."""
     r = st.Runner(plan_only=plan)
     try:
-        r.run("pretext build arxiv", lambda: st.pretext_build(cfg, "arxiv"))
-        out = cfg.root / "output" / "arxiv"
-        if pdf:
+        r.run(f"pretext build {target}",
+              lambda: st.pretext_build(cfg, target))
+        out = cfg.root / "output" / target
+        if pdf and target == "arxiv":
             def latexmk() -> str:
                 if not shutil.which("latexmk"):
                     raise RuntimeError("latexmk not installed")
@@ -120,23 +128,60 @@ def build_arxiv(cfg, plan: bool, pdf: bool) -> int:
     return 0
 
 
-def build_site(cfg, plan: bool) -> int:
-    """Delegate to the instance's build-site script when it exists (the
-    exercised path); a Python port of site assembly is deliberately not
-    duplicated here yet."""
+def _instance_site_script(cfg) -> Path | None:
+    """An instance's OWN site script, if it has one worth delegating to.
+
+    Instances predating the Python assembly keep hand-written site scripts;
+    those still run. A script that merely calls back into `paperforge build
+    site` is the superseded scaffold shim — delegating to it would recurse,
+    so it is ignored (and replaced on the next `paperforge init`)."""
     script = cfg.root / "scripts" / "build-site.sh"
     if not script.is_file():
-        return fail("no scripts/build-site.sh — site assembly is optional; "
-                    "scaffold it from <paperforge>/templates/build-site.sh "
-                    "(see docs/DEPLOYMENT.md)")
-    if plan:
-        print(f"would run: {script}")
+        return None
+    if "paperforge build site" in script.read_text(errors="ignore"):
+        return None
+    return script
+
+
+def build_site(cfg, plan: bool) -> int:
+    script = _instance_site_script(cfg)
+    if script is not None:
+        if plan:
+            print(f"would run the instance's own script: {script}")
+            return 0
+        # a delegated script that calls back in would loop; refuse the second
+        # level rather than fork-bomb
+        if os.environ.get("PAPERFORGE_BUILD_SITE") == "1":
+            return fail(f"{script} re-entered `paperforge build site` — "
+                        f"remove the callback from the script")
+        try:
+            subprocess.run(["bash", str(script)], cwd=cfg.root, check=True,
+                           env={**os.environ, "PAPERFORGE_BUILD_SITE": "1"})
+        except subprocess.CalledProcessError as e:
+            return fail(f"build-site failed (exit {e.returncode})")
+        write_provenance(cfg.root / "output", cfg.root, cfg.schema)
         return 0
+
+    raw = cfg.raw
+    warnings: list[str] = []
+    r = st.Runner(plan_only=plan)
     try:
-        subprocess.run(["bash", str(script)], cwd=cfg.root, check=True)
-    except subprocess.CalledProcessError as e:
-        return fail(f"build-site failed (exit {e.returncode})")
-    write_provenance(cfg.root / "output", cfg.root, cfg.schema)
+        r.run("version footers", lambda: st.gen_status(cfg),
+              skip=None if (cfg.root / raw.get("site", {})
+                            .get("dir", "web-assets/site") / "status.json")
+              .is_file() else "no site status.json")
+        r.run("homepage knowls", lambda: st.gen_bg_knowls(cfg),
+              skip=None if raw.get("site", {}).get("bg_knowls")
+              else "not configured")
+        r.run("assemble", lambda: ppsite.assemble(cfg, warnings.append))
+        r.run("provenance",
+              lambda: str(write_provenance(cfg.root / "output", cfg.root,
+                                           cfg.schema).name),
+              skip="plan" if plan else None)
+    except st.StageError as e:
+        return fail(str(e))
+    for w in warnings:
+        print(f"     WARN: {w}")
     return 0
 
 
@@ -147,6 +192,6 @@ def run(args, extra) -> int:
         return fail(str(e))
     if args.target == "web":
         return build_web(cfg, args.plan)
-    if args.target == "arxiv":
-        return build_arxiv(cfg, args.plan, args.pdf)
+    if args.target in ("arxiv", "print"):
+        return build_latex(cfg, args.target, args.plan, args.pdf)
     return build_site(cfg, args.plan)

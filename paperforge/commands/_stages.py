@@ -199,6 +199,18 @@ def registries(cfg: InstanceConfig) -> str:
     return "OK"
 
 
+def gen_status(cfg: InstanceConfig, check: bool = False) -> str:
+    """Refresh (or gate) the stamped version blocks in the site source."""
+    args = ["--check"] if check else []
+    py(cfg, _tool("sitegen", "gen_status.py"), ".", *args)
+    return "OK"
+
+
+def gen_bg_knowls(cfg: InstanceConfig) -> str:
+    py(cfg, _tool("sitegen", "gen_bg_knowls.py"), ".")
+    return "OK"
+
+
 def bootstrap_declmaps(cfg: InstanceConfig) -> list[Path]:
     """Generate candidate declaration maps (never silently accepted)."""
     made = []

@@ -1,7 +1,8 @@
 """Web-build postprocessing: MathJax lazy loading, ToC default-open,
 configured HTML substitutions, the UI asset bundle, and asset copies.
 
-Replaces templates/build-web.sh's in-place seds. Each function returns a
+Replaces the in-place `sed -i ''` calls the shell build once used (BSD
+only). Each function returns a
 short human status string; a RuntimeError means the expected upstream
 pattern vanished (a PreTeXt change) and the build must not pretend the
 patch was applied.
