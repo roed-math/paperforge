@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Extraction + sanitization for published session records.
 
-This module reproduces, byte-for-byte, the pipeline that generated gq2's 20
-published roe_formalization__session_NN.json files, so the same code can be
-trusted to generate further corpora (gq2 validates this against ground truth
-with its validate_formalization.py).
+The extraction and redaction rules below were derived from, and validated
+byte-for-byte against, a published 20-session corpus (an instance can point
+``validate_script`` at its own ground-truth checker — see run_all.py), so
+the same code can be trusted to generate further corpora.
+
+One redaction default has since been tightened: the hardware-capacity rule
+no longer fires on mathematical prose ("Lemma 9.2 core"). An instance
+reproducing a corpus published under the older rule sets
+``sanitize.capacity_pattern`` to CAPACITY_PATTERN_LOOSE.
 
 Extraction rule (verified against all 20 published formalization files):
 * Read the MAIN session transcript only (subagent transcripts are counted in
@@ -150,10 +155,35 @@ COMPUTE_PATH_PATTERNS = [
 LOCAL_SERVICE_RE = re.compile(r"https?://localhost(?::\d+)?[^\s'\"`\)\]\}*]*")
 LOCAL_HOST_RE = re.compile(r"\blocalhost\b")
 
-# hardware-capacity phrases such as "10 core" (also false-positives like
-# "Lemma 9.2 core", reproduced deliberately for consistency with gq2's
-# published corpus)
-CAPACITY_RE = re.compile(r"\b\d+(?:\.\d+)?\s+core\b")
+# Hardware-capacity phrases such as "10 core". The bare `\d+ core` form also
+# swallows mathematical prose ("Lemma 9.2 core"), so the default requires a
+# hardware word nearby; set "capacity_pattern" in the records config to
+# reproduce an existing corpus built with the looser rule.
+_HARDWARE = (r"cpu|gpu|machine|host|server|ram|thread|laptop|workstation"
+             r"|node|core count")
+CAPACITY_PATTERN_LOOSE = r"(?P<cap>\b\d+(?:\.\d+)?\s+core\b)"
+CAPACITY_PATTERN_DEFAULT = (
+    r"(?P<cap>\b\d+(?:\.\d+)?[- ]"
+    r"(?:physical |logical |performance |efficiency )?cores?\b)"
+    rf"(?=[^.\n]{{0,40}}\b(?:{_HARDWARE})\b)"
+    rf"|\b(?:{_HARDWARE})\b[^.\n]{{0,40}}?"
+    r"(?P<cap2>\b\d+(?:\.\d+)?[- ]cores?\b)")
+CAPACITY_RE = re.compile(CAPACITY_PATTERN_DEFAULT, re.IGNORECASE)
+
+
+def _redact_capacity(text: str) -> str:
+    """Replace only the count phrase, leaving the hardware word that
+    licensed the match in place (a custom pattern with no ``cap``/``cap2``
+    group is replaced whole)."""
+    def repl(m: re.Match) -> str:
+        groups = m.groupdict()
+        for key in ("cap", "cap2"):
+            if groups.get(key):
+                start, end = m.span(key)
+                return (m.group(0)[:start - m.start()] + "[private capacity]"
+                        + m.group(0)[end - m.start():])
+        return "[private capacity]"
+    return CAPACITY_RE.sub(repl, text)
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 
 BASE_KEEP_EMAILS = {"git@github.com", "noreply@anthropic.com"}
@@ -168,8 +198,10 @@ AUDIT_EXTRA_PATTERNS = []        # [(label, compiled pattern)]
 def configure(sanitize_cfg):
     """Install the instance's editorial rules (records config "sanitize")."""
     global KEEP_EMAILS, USER_ECHO_REPLACEMENTS
-    global PRIVATE_NAME_REPLACEMENTS, AUDIT_EXTRA_PATTERNS
+    global PRIVATE_NAME_REPLACEMENTS, AUDIT_EXTRA_PATTERNS, CAPACITY_RE
     cfg = sanitize_cfg or {}
+    CAPACITY_RE = re.compile(cfg.get("capacity_pattern",
+                                     CAPACITY_PATTERN_DEFAULT), re.IGNORECASE)
     KEEP_EMAILS = BASE_KEEP_EMAILS | set(cfg.get("keep_emails", []))
     USER_ECHO_REPLACEMENTS = [tuple(pair) for pair
                               in cfg.get("user_echo_replacements", [])]
@@ -193,7 +225,7 @@ def redact(text, session_ids=()):
     for sid in session_ids:
         if sid:
             text = text.replace(sid, "[private session id]")
-    text = CAPACITY_RE.sub("[private capacity]", text)
+    text = _redact_capacity(text)
     for old, new in USER_ECHO_REPLACEMENTS:
         text = text.replace(old, new)
     for pat, new in PRIVATE_NAME_REPLACEMENTS:

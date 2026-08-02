@@ -15,10 +15,10 @@ prose (the unused-entry validator rejects orphans).
    Lean repo and docstring `Citation:` lines — works already load-bearing.
 2. The draft's prose: named results/people mentioned without bib entries.
 3. Web + arXiv search on the paper's subjects and the obvious adjacent
-   questions (for gq2: prior presentations of local absolute Galois groups —
-   Jannsen–Wingberg, Zel'venskii's dyadic pro-2 work, Diekert; Demushkin
-   theory — Labute, Serre; applications of explicit presentations —
-   deformation-theoretic and computational).
+   questions. Cover three angles: prior results of the same shape (who
+   else proved a theorem like the main one, and for which objects), the
+   theory the proof leans on (whose names own those techniques), and
+   downstream uses (who would cite this, and for what).
 
 ## Judgment per candidate
 

@@ -8,8 +8,8 @@ description: Bump a formalization submodule to a new upstream state and regenera
 Formalizations are moving targets (requirement 1). This skill is the
 checklist for absorbing an upstream change — a cleanup, a rename pass, an
 axiom discharge — so the paper tracks it without drift. Everything derived
-is regenerated; everything authored is orphan-checked. Distilled from the
-gq2-claude 02155b3→91e1918 bump (56 commits, ±40k lines, module splits).
+is regenerated; everything authored is orphan-checked. Distilled from a
+real 56-commit, ±40k-line bump that included module splits and renames.
 
 ## Procedure
 
@@ -41,7 +41,7 @@ gq2-claude 02155b3→91e1918 bump (56 commits, ±40k lines, module splits).
    edges: `lake exe atlas graph-data -o …` in the submodule, copy to
    `crosswalk/atlas-graph.json`. The dep graph silently goes stale
    otherwise.
-8. **Rebuild + gate**: `build-web.sh` then the full validator run.
+8. **Rebuild + gate**: `paperforge build web` then `paperforge check`.
    `lean_links` is the net — every badge must resolve in the new tree.
    Two drift gates now ride along and FAIL the run until regenerated:
    the trust-base table (`ingest/trust_table.py` — an axiom added or

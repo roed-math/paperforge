@@ -22,9 +22,10 @@ can do; improve the script instead (the improvement ports to every future paper)
 2. `xmllint --noout source/*.ptx`, then `pretext build web` must succeed.
 3. **Validate the numbering simulation** the first time (and after big draft
    changes): compile the draft with pdflatex and diff the simulator against the
-   `.aux` (`\newlabel` entries are ground truth). The gq2 paper validated
-   300/300; a new paper's conventions (per-section equations, unshared counters)
-   may need simulator tweaks in `Numbering`.
+   `.aux` (`\newlabel` entries are ground truth). Expect an exact match on
+   every label; a paper whose conventions differ (per-section equations,
+   unshared counters) needs simulator work in `Numbering` — do not trust
+   unverified numbering.
 4. Triage the converter's warnings — these are the judgment cases for Claude:
    - `unlabeled <env>` / `unlabeled equation` — drift hazards. Add a `\label`
      upstream in the draft if possible; otherwise assign a semantic tag.

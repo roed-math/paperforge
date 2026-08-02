@@ -7,7 +7,7 @@ the block between the trust-table:begin/end markers of the target insertion.
 Paths and the badge project come from paper.toml [trust_table]:
 
     [trust_table]
-    project = "gq2-claude"                    # <lean project="..."> on each row
+    project = "my-lean"                       # <lean project="..."> on each row
     target = "content/insertions/62-....ptx"  # carries the marker block
     annotations = "references/trust-annotations.json"
     census = "crosswalk/axiom-citations.json"
@@ -17,9 +17,9 @@ diverge):
   * the annotation keys and the census axiom set must agree exactly
     (same declarations, same count) — hard error otherwise;
   * --check mode additionally fails if the insertion file's generated block
-    is stale.  build-web.sh runs the generator before ingest and the check
-    after the census refresh, so a census change fails the build until the
-    table is regenerated.
+    is stale.  `paperforge build web` runs the generator before ingest and
+    the check after the census refresh, so a census change fails the build
+    until the table is regenerated.
 
 An instance without a [trust_table] section skips quietly, so the tool can
 sit unconditionally in build scripts.

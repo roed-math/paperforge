@@ -46,8 +46,8 @@ reader can step into a proof without the paper growing.
   arxiv/print publication files use `<version include=""/>`); the
   `detail-level` attribute is what the HTML slider and the proof-local
   "▸ details" button key on. Both are required.
-- Pilot exemplar: `40-proof-details-pilot.ptx` in the gq2 instance
-  (lem-reconstruction).
+- Pilot one statement first: write a single insertion, build, and look at
+  it in the browser before generating the rest.
 
 ## Contract
 

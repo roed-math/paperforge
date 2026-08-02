@@ -15,7 +15,9 @@ Tag system: xml:id is the canonical, restructuring-insensitive identity of every
 numbered item. Tags derive from LaTeX labels (':' -> '-'); unlabeled numbered
 items get generated tags and a warning (they are drift hazards).
 
-Simulated numbering (amsart conventions of the gq2 paper):
+Simulated numbering, profile
+"amsart-shared-section-theorems-global-equations" (the only one
+implemented; --numbering-profile refuses any other name):
   - sections: 1,2,... ; after \\appendix: A,B,...
   - one shared theorem-like counter (aliascnt), reset per section: "4.2"
   - equations: one GLOBAL counter; +1 per equation env and per align row
@@ -880,7 +882,7 @@ def build_source_map(parse_tex: str, orig_tex: str) -> dict:
     parse_lines = parse_tex.split("\n")
     orig_lines = orig_tex.split("\n")
     # line starts in each text (line structure is preserved by
-    # strip_comments and the \MarkedDem expansion)
+    # strip_comments and by the --rewrite expansions)
     pstart, ostart, acc_p, acc_o = [], [], 0, 0
     for pl, ol in zip(parse_lines, orig_lines):
         pstart.append(acc_p)
@@ -888,7 +890,7 @@ def build_source_map(parse_tex: str, orig_tex: str) -> dict:
         acc_p += len(pl) + 1
         acc_o += len(ol) + 1
     # a parse line is trustworthy when it is a prefix of the original
-    # (comment stripping truncates; the \MarkedDem expansion rewrites)
+    # (comment stripping truncates; a --rewrite substitutes)
     clean = [ol[:len(pl)] == pl for pl, ol in zip(parse_lines, orig_lines)]
 
     import bisect
@@ -1207,7 +1209,7 @@ def main() -> int:
                     dest="rewrites", metavar="FROM=TO",
                     help="literal pre-parse rewrite of a structural draft "
                          "macro (repeatable), e.g. "
-                         "'\\MarkedDem=\\cref{prop:markedDem}'. Macro "
+                         "'\\MyMacro=\\cref{prop:target}'. Macro "
                          "definitions mentioning FROM are dropped from the "
                          "emitted macro block. Applied rewrites are logged.")
     ap.add_argument("--numbering-profile",

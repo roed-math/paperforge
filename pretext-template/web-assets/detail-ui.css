@@ -72,13 +72,18 @@ article.theorem-like > .lean-link, section > .lean-link,
 }
 article.theorem-like > .lean-link::before,
 .ptx-content dl .lean-link::before { content: "⚙ "; }
-/* Two independent formalizations, distinguished by color:
-   gq2-claude (the GQ2 library) keeps the green above;
-   gq2-gpt (Q2Presentation) gets indigo. Tooltips name the project. */
-.ptx-content .lean-link.lean-proj-gq2-gpt {
+/* Independent formalizations, distinguished by color. Every badge carries
+   lean-proj-<name>, where <name> is [formalizations.<key>].name from
+   paper.toml; the green above is the shared default, so a paper with one
+   formalization needs nothing here. For a second (third, ...) project,
+   uncomment this block and substitute its name — and its counterpart in
+   the :root.dark-mode section below. Tooltips already name the project. */
+/*
+.ptx-content .lean-link.lean-proj-SECOND-PROJECT {
   border-color: rgba(55, 80, 180, 0.45);
   background: rgba(70, 100, 220, 0.08);
 }
+*/
 /* declarations without a docs page (private): same pill, visibly inert —
    dashed outline, help cursor, tooltip carries the explanation */
 .ptx-content .lean-link.lean-nolink {
@@ -221,6 +226,9 @@ details.hiddenproof:not([open]) .detail-next-btn { display: none; }
 :root.dark-mode .ptx-content dl .lean-link {
   border-color: rgba(120, 200, 150, 0.45);
 }
-:root.dark-mode .ptx-content .lean-link.lean-proj-gq2-gpt {
+/* dark-mode counterpart of the per-project badge color near the top of
+   this file — uncomment alongside it, with the same project name.
+:root.dark-mode .ptx-content .lean-link.lean-proj-SECOND-PROJECT {
   border-color: rgba(130, 150, 240, 0.55);
 }
+*/

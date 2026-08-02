@@ -12,6 +12,10 @@ initializer.
 
 ## Steps
 
+0. If this machine has never run paperforge, run `paperforge selftest`
+   first — it drives the bundled fixture end to end in a scratch directory,
+   so an environment problem surfaces before it can be mistaken for a
+   problem with the author's paper.
 1. Confirm the cwd is an empty/new repo intended for one paper, then run
    `paperforge init . --non-interactive` with the flags the author's
    answers imply (`--title`, `--slug`, `--draft`, `--lean-root` +
@@ -24,7 +28,11 @@ initializer.
    `[[ingest.literal_rewrites]]` for structural draft macros, detail
    levels, a `badge_cap` for decomposed-proof projects.
 3. Have the author drop the inputs (draft, style corpus, reference PDFs),
-   then run `paperforge doctor` and fix anything it flags.
+   then run `paperforge doctor` and fix anything it flags. `init` leaves
+   author-facing guidance in place — `style-corpus/README.md` +
+   `ADVICE.md`, `references/README.md`, `directives/examples/`,
+   `agents.toml`; walk the author through `ADVICE.md` in particular, since
+   every generative skill reads it.
 4. Run `paperforge ingest --bootstrap` and REVIEW the candidate
    declaration map WITH the author — the mining is heuristic and
    acceptance is the author's call (`paperforge accept lean-decl-map`).

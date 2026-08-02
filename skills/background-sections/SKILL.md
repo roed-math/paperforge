@@ -15,9 +15,9 @@ don't already know.
 
 - **Paper-wide background** — a `Background` section immediately after the
   introduction: material used in multiple sections, or needed to understand
-  the statements of the main results (for gq2: profinite presentations and
-  counting, Demushkin groups, local class field theory conventions, group
-  cohomology and duality at the level the paper uses them).
+  the statements of the main results — the handful of theories the paper
+  assumes throughout, each at the level the paper actually uses, with its
+  conventions pinned down.
 - **Per-section background** — a background subsection at the *beginning*
   of a section, for material needed only in that section (e.g. Arf
   invariants and quadratic forms in characteristic 2 before the

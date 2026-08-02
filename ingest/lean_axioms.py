@@ -2,7 +2,9 @@
 """lean_axioms: extract the formalization's axiom census with citations.
 
 Scans the Lean repo for `axiom` declarations and parses their docstrings for
-the citation discipline used in gq2-lean:
+this citation discipline (adopt it in the formalization — an axiom whose
+docstring does not parse is reported as a formalization-side gap, never
+silently dropped):
 
     **[Classical — B4.]** ...
     Citation: NSW [1], Ch. VII §7.5, Theorem (7.5.11)(ii) ...; Labute [2], Theorem 8 ...
@@ -10,12 +12,12 @@ the citation discipline used in gq2-lean:
 
 Emits ``crosswalk/axiom-citations.json``:
 
-    { "GQ2.Foundations.absGalQ2_maxProTwo_presentation": {
+    { "MyProject.Foundations.some_classical_input": {
         "census": "B4", "file": "...", "line": N,
         "citation_lines": ["NSW [1], Ch. VII ...", ...],
         "works": ["NSW", "Labute", "Serre"],          # surname/acronym tokens
         "paper_refs": ["Lemma 3.4", "Prop. 1.1"],
-        "paper_tags": ["lem-tamestructure", "prop-markedDem"] } , ... }
+        "paper_tags": ["lem-tame-structure", "prop-main"] } , ... }
 
 Also seeds ``references/bib-aliases.json`` (work token -> bib key) for any
 token that fuzzy-matches a bibliography entry — author-correctable afterward.

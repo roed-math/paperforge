@@ -1,31 +1,55 @@
-# paperforge instance config. Copied into a new instance by `paper-init`.
-# Paths are relative to the instance repo root unless absolute.
+# paperforge instance config — the annotated catalogue of every knob.
+#
+# This file is REFERENCE, not a file to copy: `paperforge init` writes a
+# minimal paper.toml with the handful of keys a new paper needs, and you
+# add blocks from here as you turn features on. docs/CONFIGURATION.md is
+# the same catalogue in table form, with defaults and deprecations.
+#
+# Paths are relative to the instance repo root unless absolute; `~`
+# expands. Machine-local values (the PreTeXt core XSL) belong in the
+# gitignored .paperforge.local.toml — committed files carry no machine
+# paths.
+
+[paperforge]
+# The config/artifact-layout generation this instance is written against.
+# Checked on every load; the compatibility gate for tool upgrades.
+instance_schema = 1
 
 [paper]
 title = "Title of the paper"
-instance_name = "mypaper"      # short slug; used for output filenames
+slug = "mypaper"               # short identifier; used for output filenames
+document_id = "mypaper"        # PreTeXt <document-id> (defaults to slug)
 
 [inputs]
-# The AI-written LaTeX draft. Also serves as a plagiarism baseline (see below).
+# The AI-written LaTeX draft: the canonical editable input, and the
+# plagiarism baseline (see [plagiarism] below).
 ai_draft = "inputs/draft/main.tex"
-# The PRIMARY Lean formalization: a lake project root (may be absolute).
-# Drives the axiom census, blueprint, and the default badge project.
-lean_project = "/Users/roed/claude/gq2-lean"
-# How <lean ref="X"> becomes a docs URL (doc-gen4 / Verso output). Sets the
-# `lean.docs.base` XSL param in custom-html.xsl.
-lean_docs_base = "https://roed.example/gq2-lean/docs/"
 
-# Additional independent formalizations. Badges carry project= and get
-# per-project colors (CSS class lean-proj-<name>); lean_links validates each
-# project's refs against its own tree; build-web passes each declmap via
-# --lean-map <name>=<declmap>. Mine the declmap with lean_declmap.py
-# --cite-styles suited to that repo's citation discipline, --exclude for
-# vendored trees, and cap badges via --lean-badge-cap when its proofs
-# decompose statements into many declarations.
-# [inputs.formalizations.other-model]
+# ---- Formalizations. Omit the whole family for a paper with no Lean
+# project: badges, the axiom census and the lean_links validator all skip.
+#
+# The PRIMARY formalization drives the axiom census, the blueprint, and the
+# default badge project. `name` is the badge project key: it becomes the
+# CSS class lean-proj-<name> and the /lean/<name>/ docs subset.
+[formalizations.primary]
+name = "mypaper-lean"
+root = "../mypaper-lean"       # a lake project root (may be absolute)
+# module = "MyPaper"           # top module dir inside root (census/docs subset)
+# docs_root = "../lean/"       # deployed docs URL PREFIX (a URL, not a path)
+declmap = "crosswalk/lean-decl-map.json"
+
+# Additional INDEPENDENT formalizations (e.g. a second model's). Each gets
+# its own badge color, its own docs subset, and is validated against its own
+# tree. Mine its declmap with ingest/lean_declmap.py --cite-styles suited to
+# that repo's citation discipline, --exclude for vendored trees, and cap
+# badges with badge_cap when its proofs decompose one statement into many
+# declarations.
+# [formalizations.other-model]
+# name = "other-model"
 # root = "formalizations/other-model"
 # module = "TheirModuleName"
 # declmap = "crosswalk/lean-decl-map-other.json"
+# badge_cap = 1
 
 # Known historical snapshots of the paper (the draft is a moving target; the
 # formalization may cite an older version's numbering). Each snapshot gets a
@@ -42,6 +66,24 @@ lean_docs_base = "https://roed.example/gq2-lean/docs/"
 dir = "crosswalk/"
 baseline = "v1"    # which snapshot the formalization's prose citations use
 
+[ingest]
+# Restyle \mathbf X -> \mathbb{X} for these letters (a common house
+# convention difference between a draft and its published form).
+mathbb_letters = ""
+# The one numbering convention the simulator implements; it refuses others
+# rather than guess. Verify against your draft's .aux before trusting it.
+numbering_profile = "amsart-shared-section-theorems-global-equations"
+# Author block: 'Name|Affiliation line|...' entries, plus '@draft' wherever
+# the draft's own author block should be spliced in.
+# authors = ["Jane Doe|Department|University", "@draft"]
+
+# Structural draft macros expanded before parsing. Use this for macros whose
+# expansion is a cross-reference or other structure the converter must see;
+# the macro's own \newcommand is dropped from the emitted block.
+# [[ingest.literal_rewrites]]
+# from = "\\MyMacro"
+# to = "\\cref{prop:target}"
+
 [style]
 # Prior writing samples that define the author's voice (verbatim reference).
 corpus = "style-corpus/"
@@ -52,14 +94,14 @@ advice = "style-corpus/ADVICE.md"
 pdf_dir = "references/"         # local copies of cited works (for the ref check)
 bib     = "source/references.ptx"  # PreTeXt-native bibliography (converted)
 # Alphabetic reference labels + author-name ordering (tex2ptx bib-labels option)
-# labels = "references/bib-labels.json"
+labels = "references/bib-labels.json"
 
 [notation]
 # HTML hover affordance: a \notn use more than far_words after its definition
 # is rewritten to \notnfar (visible dotted underline) by ingest/notation_far.py.
 # Derived data — recompute after edits; never hand-write \notnfar.
 far_words = 1500
-near_hover_delay_ms = 200   # plain symbols (halved 2026-07-12 per author review)
+near_hover_delay_ms = 200   # plain symbols
 far_hover_delay_ms = 500    # \notnfar-marked symbols
 # Definition-site highlight: on hover, the defining occurrence flashes after
 # this short delay (just enough to skip drive-by mouses).
@@ -81,13 +123,17 @@ error_run = 12     # runs at least this long are errors (shorter: warnings)
 sources = ["references/"]
 
 [build]
-# FOLLOW-UP: the spike imports the core XSL by absolute path. Until the portable
-# import is sorted, point this at the installed PreTeXt core for this machine.
-pretext_core_xsl = "/Users/roed/.ptx/2.43.2/core/xsl/pretext-html.xsl"
-# siblings, used by the latex targets (paper-init fills the xsl placeholders):
-#   pretext-latex.xsl  and  pretext-latex-classic.xsl  in the same core dir
 web_output   = "output/web"
 print_output = "output/print"
+# The PreTeXt core XSL the conversions import is MACHINE-LOCAL: `paperforge
+# init`/`doctor` discover it and write .paperforge.local.toml plus the
+# gitignored xsl/core-local/ shims. Do not set pretext_core_xsl here.
+
+# Literal replacements applied to the built HTML pages — for metadata the
+# XSL cannot reach, e.g. Unicode for raw title math in <title>/OG tags.
+# [[build.web_substitutions]]
+# from = "\\mathbb{Q}_2"
+# to = "ℚ₂"
 
 # Sections deliberately running WITHOUT an <introduction> summary (a short
 # section whose opening prose already is one): recorded waivers, read by the
@@ -97,20 +143,20 @@ print_output = "output/print"
 
 # Trust-base table (ingest/trust_table.py): joins the axiom census with
 # hand-authored row annotations and rewrites the marker block of the target
-# insertion; --check is a drift gate (run by build-web and the
+# insertion; --check is a drift gate (run by `paperforge build web` and the
 # artifact_drift validator). Omit the section to skip the step.
 # [trust_table]
-# project = "my-lean-project"           # <lean project="..."> on each row
+# project = "mypaper-lean"              # <lean project="..."> on each row
 # target = "content/insertions/NN-intro-formalization.ptx"
 # annotations = "references/trust-annotations.json"
 # census = "crosswalk/axiom-citations.json"
 
-# ---- Project-site assembly (paperforge sitegen/ tools). Every block below
-# is optional; each sitegen step skips quietly when its knobs are absent.
+# ---- Project-site assembly (`paperforge build site`). Every block below
+# is optional; each step skips quietly when its knobs are absent.
 
 [site]
-dir = "web-assets/site"        # hand-authored site tree (rsynced whole)
-# pdf = "my-arxiv-preview.pdf" # site copy: output/site/paper.pdf
+dir = "web-assets/site"        # hand-authored site tree (copied whole)
+# pdf = "output/arxiv/main.pdf"  # source of the site's /paper.pdf
 
 # Version footers + drift gate (sitegen/gen_status.py): a site status.json
 # renders into every versions:begin/end marker block; extras are format
@@ -139,16 +185,16 @@ dir = "web-assets/site"        # hand-authored site tree (rsynced whole)
 # auto-numbered id fails the build instead of shipping the wrong paragraph.
 # [[site.bg_knowls.statements]]
 # key = "thm-main"
-# title = "Theorem 1.2 (Presentation theorem)"
+# title = "Theorem 1.2 (Main theorem)"
 # href = "paper/paper.html#thm-main"
 # ids = ["sec-intro-2-2", "thm-main"]
-# expect = ["notation", "Presentation theorem"]
+# expect = ["notation", "Main theorem"]
 
 # Site favicon (sitegen/gen_favicon.py): glyph outlines from MathJax's New
 # Computer Modern font data on a rounded tile; sub is optional. Needs the
 # npm font package under vendor/ and rsvg-convert for the rasters.
 # [site.favicon]
-# title = "Q_2"
+# title = "X"
 # tile = "#1e5c3a"
 # ink = "#ffffff"
 # radius = 13         # corner radius on the 64-unit tile

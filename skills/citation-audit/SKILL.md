@@ -38,8 +38,8 @@ directive when placement/wording needs the author. Never silently edit.
 
 A citation that supports a specific claim carries a **locator** — the
 theorem/section/page inside the work ("[JS, Theorem 3.4]", "[NSW,
-(7.2.6)]"), not a bare "[JS]". The gq2 release-eve pass (2026-07-27)
-audited all 325 citation occurrences this way. Rules:
+(7.2.6)]"), not a bare "[JS]". Audit every citation occurrence this way.
+Rules:
 
 - **Verify against the source PDF before editing.** A pin is added or
   changed only after the cited statement is located in the actual source

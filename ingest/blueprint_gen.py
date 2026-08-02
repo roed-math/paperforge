@@ -70,9 +70,10 @@ def _brace(s: str, i: int) -> int:
 
 
 class Gen:
-    def __init__(self, root: Path, declmap="crosswalk/lean-decl-map.json",
+    def __init__(self, root: Path, module: str,
+                 declmap="crosswalk/lean-decl-map.json",
                  census="crosswalk/axiom-citations.json",
-                 atlas="crosswalk/atlas-graph.json", module="GQ2",
+                 atlas="crosswalk/atlas-graph.json",
                  doc_title=None, kind_map=None):
         self.root = root
         self.module = module
@@ -422,22 +423,39 @@ own dependency graph.
 """)
 
 
+def _paper_title(root: Path) -> str:
+    try:
+        import tomllib
+    except ModuleNotFoundError:      # Python < 3.11
+        import tomli as tomllib
+    try:
+        with open(root / "paper.toml", "rb") as fh:
+            return tomllib.load(fh).get("paper", {}).get("title") or "the paper"
+    except OSError:
+        return "the paper"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("instance", type=Path, nargs="?", default=Path.cwd())
     ap.add_argument("--blueprint-dir", type=Path, default=None,
                     help="blueprint project dir (default <instance>/blueprint)")
-    ap.add_argument("--project", default="GQ2Blueprint")
+    ap.add_argument("--project", required=True,
+                    help="Verso library name for the generated blueprint "
+                         "(e.g. MyPaperBlueprint)")
     ap.add_argument("--declmap", default="crosswalk/lean-decl-map.json")
     ap.add_argument("--census", default="crosswalk/axiom-citations.json",
                     help="axiom census JSON, or 'none' to skip Foundations")
     ap.add_argument("--atlas", default="crosswalk/atlas-graph.json",
                     help="Lean Atlas graph export for dependency edges "
                          "(skipped when the file does not exist)")
-    ap.add_argument("--module", default="GQ2",
-                    help="Lean module the chapters import")
-    ap.add_argument("--title", default="Blueprint: a profinite presentation "
-                                       "of the absolute Galois group of ℚ₂")
+    ap.add_argument("--module", required=True,
+                    help="the formalization's Lean module, imported by every "
+                         "generated chapter (paper.toml "
+                         "[formalizations.<key>].module)")
+    ap.add_argument("--title", default=None,
+                    help="blueprint document title (default: the paper's "
+                         "title from paper.toml, prefixed 'Blueprint: ')")
     ap.add_argument("--kind-map", action="append", default=[],
                     metavar="FROM=TO",
                     help="map a statement kind to another directive (e.g. "
@@ -448,8 +466,9 @@ def main():
     bp = args.blueprint_dir or root / "blueprint"
     out_lib = bp / args.project
     (out_lib / "Chapters").mkdir(parents=True, exist_ok=True)
-    gen = Gen(root, declmap=args.declmap, census=args.census,
-              atlas=args.atlas, module=args.module, doc_title=args.title,
+    title = args.title or f"Blueprint: {_paper_title(root)}"
+    gen = Gen(root, args.module, declmap=args.declmap, census=args.census,
+              atlas=args.atlas, doc_title=title,
               kind_map=dict(kv.split("=", 1) for kv in args.kind_map))
     chapters = gen.run(out_lib, args.project)
     print(f"wrote {len(chapters)} chapters -> {out_lib}/Chapters/ "

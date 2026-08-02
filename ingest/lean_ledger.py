@@ -112,7 +112,8 @@ def apply(path: Path, entries: list[str], dry: bool) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("lean_root", type=Path, help="e.g. ~/claude/gq2-lean/GQ2")
+    ap.add_argument("lean_root", type=Path,
+                    help="the formalization checkout (or its top module dir)")
     ap.add_argument("--current", type=Path, required=True)
     ap.add_argument("--old", type=Path, help="matched old-numbering JSON (label -> {old, old_kind})")
     ap.add_argument("--eq-window", type=int, default=10**9,

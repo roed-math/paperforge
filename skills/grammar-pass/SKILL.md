@@ -15,11 +15,14 @@ Requirement 9. The AI draft has grammar problems; this cleans them.
 - Prefer minimal edits; each is a discrete commit.
 
 ## House style
-- **No em-dashes in manuscript prose** (gq2 release-eve rule, 2026-07-27):
-  rewrite an em-dash construction as a comma clause, parenthetical, colon,
-  or a new sentence, across the manuscript, insertions, background drafts,
-  and popup definitions alike. En dashes in ranges ("(1.1)–(1.3)", page
-  spans) are unaffected.
+House rules are the author's, not this skill's: read the instance's
+`style-corpus/ADVICE.md` first and apply what it asks for. One rule recurs
+often enough to spell out — apply it **only when ADVICE.md calls for it**:
+
+- **No em-dashes in manuscript prose.** Rewrite an em-dash construction as
+  a comma clause, parenthetical, colon, or a new sentence, across the
+  manuscript, insertions, background drafts, and popup definitions alike.
+  En dashes in ranges ("(1.1)–(1.3)", page spans) are unaffected.
 
 ## Guardrails
 - A grammar fix must not change meaning. If fixing a sentence requires a
