@@ -413,11 +413,26 @@
   // MathJax's stored TeX (getMathItemsWithin), so it works even for middle
   // equations that were never cross-referenced (no knowl file) or not yet
   // lazily typeset; \notn wrappers survive, so notation hovers work inside.
-  function wireEquationRanges() {
+  //
+  // Runs over the page at load and again over every knowl body PreTeXt
+  // inserts later (the observer at the call site): a theorem opened as a
+  // knowl from the abstract carries the same "(1.1)–(1.3)" links, and
+  // without the second pass they fell back to PreTeXt's endpoint knowls.
+  function wireEquationRanges(root) {
+    root = root || document;
+    var sel = 'a[data-knowl][href^="#"]';
+    // A knowl body can carry its own copies of the equations, with the
+    // same ids as the page's: resolve inside the body first, so the panel
+    // shows the copy the reader is looking at, then fall back to the page.
+    var scope = root === document ? document : (root.closest(".knowl__content") || document);
+    function byId(id) {
+      var el = scope !== document ? scope.querySelector('[id="' + id + '"]') : null;
+      return el || document.getElementById(id);
+    }
     function eqTarget(a) {
       var href = a.getAttribute("href") || "";
       if (href.charAt(0) !== "#") return null;
-      var el = document.getElementById(href.slice(1));
+      var el = byId(href.slice(1));
       return el && el.classList.contains("displaymath") ? el : null;
     }
     function eqNum(a) {   // "(1.3)" -> {prefix: "1.", n: 3}
@@ -425,8 +440,11 @@
       return m ? {prefix: m[1] ? m[1] + "." : "", n: +m[2]} : null;
     }
     var anchors = Array.prototype.slice.call(
-      document.querySelectorAll('.ptx-content a[data-knowl][href^="#"]'));
+      root === document ? document.querySelectorAll(".ptx-content " + sel)
+                        : root.querySelectorAll(sel));
+    if (root !== document && root.matches && root.matches(sel)) anchors.unshift(root);
     anchors.forEach(function (a1) {
+      if (a1.closest("span.eqrange")) return;      // already wired
       var dash = a1.nextSibling;
       if (!dash || dash.nodeType !== 3 ||
           dash.textContent.trim() !== "–") return;
@@ -438,7 +456,7 @@
       if (!e1 || !e2 || !n1 || !n2) return;
       if (n1.prefix !== n2.prefix || n2.n <= n1.n) return;
       var all = Array.prototype.slice.call(
-        document.querySelectorAll("div.displaymath[id]"));
+        (e1.closest(".knowl__content") || document).querySelectorAll("div.displaymath[id]"));
       var i1 = all.indexOf(e1), i2 = all.indexOf(e2);
       if (i1 < 0 || i2 <= i1) return;
       var eqs = all.slice(i1, i2 + 1);
@@ -452,6 +470,7 @@
       span.appendChild(dash);
       span.appendChild(a2);
       span.addEventListener("click", function (e) {
+        if (span._bypass) return;   // the fallback below re-dispatches on the anchors
         if (e.metaKey || e.ctrlKey || e.shiftKey) return;   // allow new-tab
         e.preventDefault();
         e.stopPropagation();
@@ -476,8 +495,10 @@
           return "\\[" + tex + "\\]";
         });
         if (parts.indexOf(null) >= 0) {
-          a1.click();          // stored TeX unavailable: at least open the
-          a2.click();          // endpoint knowls the classical way
+          span._bypass = true; // stored TeX unavailable: at least open the
+          a1.click();          // endpoint knowls the classical way
+          a2.click();
+          span._bypass = false;
           return;
         }
         var panel = document.createElement("div");
@@ -630,6 +651,20 @@
     wireStatementDetails();
     wireNotation();
     wireEquationRanges();
+    // Knowl bodies land after load: wire the ranges inside each as it lands.
+    // Our own wrapping and panels also trigger this, and are skipped as
+    // already wired / free of knowl links.
+    if (window.MutationObserver) {
+      new MutationObserver(function (muts) {
+        muts.forEach(function (m) {
+          Array.prototype.forEach.call(m.addedNodes, function (n) {
+            if (n.nodeType !== 1 || !n.querySelector) return;
+            var sel = 'a[data-knowl][href^="#"]';
+            if ((n.matches && n.matches(sel)) || n.querySelector(sel)) wireEquationRanges(n);
+          });
+        });
+      }).observe(document.body, { childList: true, subtree: true });
+    }
     wireLeanKnowls();
     wireSectionSummaries();
     addHomeLinks();
