@@ -5,8 +5,6 @@
   <img src="assets/paperforge-mark.svg" alt="PaperForge: a dog-eared page being forged on an anvil" width="110" align="right">
 </picture>
 
-*(working name — rename freely)*
-
 [![built with PaperForge](assets/paperforge-badge.svg)](https://github.com/roed-math/paperforge)
 
 A framework for turning an **AI-written math paper** plus a **Lean
@@ -29,10 +27,15 @@ Math stays LaTeX inside `<m>`, so the XML authoring cost falls on the
 tooling, not the author. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 for the requirement-by-requirement design.
 
-The exercised instance is the G_Q2 paper:
-**https://roed314.github.io/gq2/** — paper, PDF, two independent
-formalizations with per-statement badges, blueprints, API docs, and the
-full AI-development record with token accounting.
+Papers built with it:
+
+- **https://roed314.github.io/gq2/** — *A Presentation of the Absolute
+  Galois Group of Q_2* (Roe, Turturean): paper, PDF, two independent
+  formalizations with per-statement badges, blueprints, API docs, and the
+  full AI-development record with token accounting. The instance the
+  tooling was developed against.
+- **https://cbirkbeck.github.io/uniform-sheafy-tate-domains/** — *Uniform
+  sheafy Tate rings that are not stably uniform* (Birkbeck, Torzewski).
 
 ## What you get
 
