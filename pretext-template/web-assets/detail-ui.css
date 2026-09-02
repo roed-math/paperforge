@@ -44,7 +44,9 @@ body.notation-links-off [class*="ptxnotn-"]:hover {
 }
 
 .notation-popup {
-  position: absolute; z-index: 1200; max-width: 24rem;
+  /* above the running-example drawer (#gqx-drawer, z-index 2000): a term
+     near the right edge of the text column pops up under it otherwise */
+  position: absolute; z-index: 2100; max-width: 24rem;
   background: #fff; color: #111;
   border: 1px solid rgba(0,0,0,.2); border-radius: 6px;
   box-shadow: 0 6px 18px rgba(0,0,0,.18);
