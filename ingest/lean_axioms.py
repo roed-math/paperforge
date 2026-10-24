@@ -68,15 +68,24 @@ def resolve_paper_tags(paper_refs, old_map, cur_items, old_items=None):
     # fallback for refs added after that snapshot.  Seeding equations and
     # divisions from current numbering alone silently retargets every
     # "eq. (N)" / "§X.Y" citation as soon as an insertion renumbers the paper.
+    # Statement numbers follow the same rule, and a kind-specific hit in the
+    # current numbering must not outrank an any-kind hit in the snapshot: a
+    # docstring's "Lemma 3.6" written against the snapshot (where 3.6 may since
+    # have become a remark) is still that item, not whatever this paper's
+    # Lemma 3.6 happens to be.  So keep one map per snapshot and consult the
+    # old one fully before the current one.
+    res_cur = {}
     eqmap, secmap = {}, {}
-    for items in (x for x in (old_items, cur_items) if x):
+    for items, store in ((old_items, res), (cur_items, res_cur)):
+        if not items:
+            continue
         for tag, r in items.items():
             num = r["number"]
             if not num or "?" in num:
                 continue
             if r["kind"] in kindmap.values():
-                res.setdefault((r["kind"], num), tag)
-                res.setdefault(("any", num), tag)
+                store.setdefault((r["kind"], num), tag)
+                store.setdefault(("any", num), tag)
             elif r["kind"] in ("equation", "align-row"):
                 eqmap.setdefault(num.strip("()"), tag)
             elif r["kind"] in ("section", "appendix", "subsection",
@@ -91,7 +100,8 @@ def resolve_paper_tags(paper_refs, old_map, cur_items, old_items=None):
                 tags.append(secmap[sec])
         elif num:
             kind = kindmap.get(kind_raw.lower(), "any") if kind_raw else "any"
-            t = res.get((kind, num)) or res.get(("any", num))
+            t = (res.get((kind, num)) or res.get(("any", num))
+                 or res_cur.get((kind, num)) or res_cur.get(("any", num)))
             if t:
                 tags.append(t)
     return sorted(set(tags))

@@ -63,7 +63,8 @@ def validate(census: dict, annot: dict) -> list[str]:
     return errors
 
 
-def render(census: dict, annot: dict, project: str) -> str:
+def render(census: dict, annot: dict, project: str,
+           known_tags: set | None = None) -> str:
     """The generated dl: one entry per interface, in census (B-id) order."""
     def sort_key(bid: str):
         m = re.match(r"B(\d+)([a-z]?)", bid)
@@ -74,7 +75,12 @@ def render(census: dict, annot: dict, project: str) -> str:
         row = annot[bid]
         decl = row["decl"]
         short = decl.split(".")[-1]
-        anchors = census[decl].get("paper_tags", [])
+        # Anchors are resolved from the Lean docstrings' "Paper:" lines; when
+        # those cite a companion paper's numbering (axioms_old_numbering), the
+        # tags need not exist here, and an xref to a missing tag fails the
+        # PreTeXt build.  Keep only anchors this paper actually has.
+        anchors = [a for a in census[decl].get("paper_tags", [])
+                   if not known_tags or a in known_tags]
         used = ", ".join(f'<xref ref="{a}"/>' for a in anchors) or "(none)"
         out.append(f"""  <li>
     <title>{bid} ({KIND_LABEL[row['kind']]})</title>
@@ -114,7 +120,12 @@ def main() -> int:
     if errors:
         return 1
 
-    block = render(census, annot, cfg["project"])
+    known_tags: set = set()
+    cw = config.get("crosswalk", {}).get("dir", "crosswalk/")
+    num = root / cw / "numbering-current.json"
+    if num.exists():
+        known_tags = set(json.loads(num.read_text()).get("items", {}))
+    block = render(census, annot, cfg["project"], known_tags)
     text = target.read_text()
     pat = re.compile(r"(<!-- trust-table:begin[^>]*-->\n).*?(\n<!-- trust-table:end -->)",
                      re.DOTALL)

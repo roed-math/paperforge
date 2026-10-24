@@ -28,7 +28,7 @@ KIND = {"theorem": "theorem", "thm": "theorem", "lemma": "lemma", "lem": "lemma"
 DECL = re.compile(
     r"^\s*(?:@\[[^\]]*\]\s*)*"
     r"((?:private\s+|protected\s+|noncomputable\s+|nonrec\s+|partial\s+)*)"
-    r"(theorem|lemma|def|abbrev|instance|structure|axiom)\s+([A-Za-z_][\w'.]*)")
+    r"(theorem|lemma|def|abbrev|instance|structure|inductive|class|opaque|axiom)\s+([A-Za-z_][\w'.]*)")
 NS = re.compile(r"^\s*namespace\s+([A-Za-z_][\w'.]*)")
 SECTION = re.compile(r"^\s*section\b")
 END = re.compile(r"^\s*end\b")
